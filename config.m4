@@ -107,14 +107,26 @@ if test "$PHP_LLM" != "no"; then
   # Build the extension using cargo
   AC_MSG_CHECKING([building llm extension with cargo ($BUILD_TYPE mode)])
   
-  # Build with appropriate environment
+  # Get the absolute path to the extension source directory
+  # This is important when building from PHP source tree
+  LLM_SRC_DIR="$abs_srcdir"
+  CARGO_MANIFEST="$LLM_SRC_DIR/Cargo.toml"
+  
+  # Verify Cargo.toml exists
+  if test ! -f "$CARGO_MANIFEST"; then
+    AC_MSG_ERROR([Cargo.toml not found at $CARGO_MANIFEST])
+  fi
+  
+  AC_MSG_NOTICE([Using Cargo.toml from: $CARGO_MANIFEST])
+  
+  # Build with appropriate environment and manifest path
   if test "$UNAME_S" = "Darwin"; then
     LIBCLANG_PATH="$LIBCLANG_PATH" \
     LLVM_CONFIG_PATH="$LLVM_CONFIG_PATH" \
     PATH="$LLVM_PATH/bin:$PATH" \
-    cargo $CARGO_BUILD_MODE 2>&1
+    cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   else
-    cargo $CARGO_BUILD_MODE 2>&1
+    cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   fi
 
   if test $? -ne 0; then
@@ -122,25 +134,27 @@ if test "$PHP_LLM" != "no"; then
   fi
 
   AC_MSG_RESULT([success])
-
+  
   # Verify the extension was built
+  # The target directory is relative to the source directory
+  LLM_TARGET_DIR="$LLM_SRC_DIR/$CARGO_TARGET_DIR"
+  
   if test "$BUILD_TYPE" = "static"; then
-    if test ! -f "$CARGO_TARGET_DIR/$EXT_LIB"; then
-      AC_MSG_ERROR([Static library not found: $CARGO_TARGET_DIR/$EXT_LIB])
+    if test ! -f "$LLM_TARGET_DIR/$EXT_LIB"; then
+      AC_MSG_ERROR([Static library not found: $LLM_TARGET_DIR/$EXT_LIB])
     fi
   else
-    if test ! -f "$CARGO_TARGET_DIR/$EXT_SO"; then
-      AC_MSG_ERROR([Extension file not found: $CARGO_TARGET_DIR/$EXT_SO])
+    if test ! -f "$LLM_TARGET_DIR/$EXT_SO"; then
+      AC_MSG_ERROR([Extension file not found: $LLM_TARGET_DIR/$EXT_SO])
     fi
   fi
-
   # Handle static vs shared linking
   if test "$BUILD_TYPE" = "static"; then
     # Static linking: Add the static library to PHP's build
     AC_MSG_CHECKING([configuring static linking])
     
     # Get the full path to the static library
-    LLM_STATIC_LIB="$abs_srcdir/$CARGO_TARGET_DIR/$EXT_LIB"
+    LLM_STATIC_LIB="$LLM_TARGET_DIR/$EXT_LIB"
     
     # Add the static library to EXTRA_LDFLAGS
     EXTRA_LDFLAGS="$EXTRA_LDFLAGS $LLM_STATIC_LIB"
@@ -159,12 +173,11 @@ if test "$PHP_LLM" != "no"; then
     
     PHP_SUBST(EXTRA_LDFLAGS)
     AC_MSG_RESULT([success])
-    
     # Define the extension for PHP (static linking)
     PHP_NEW_EXTENSION(llm, llm.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)
     
     # Add the static library to the extension's shared libadd
-    PHP_ADD_LIBRARY_WITH_PATH(llm, $CARGO_TARGET_DIR, LLM_SHARED_LIBADD)
+    PHP_ADD_LIBRARY_WITH_PATH(llm, $LLM_TARGET_DIR, LLM_SHARED_LIBADD)
     PHP_SUBST(LLM_SHARED_LIBADD)
     
   else
@@ -178,12 +191,11 @@ if test "$PHP_LLM" != "no"; then
 
     # Copy the extension
     AC_MSG_CHECKING([copying extension to $PHP_EXT_DIR])
-    $PHP_SHELL -c "cp $CARGO_TARGET_DIR/$EXT_SO $PHP_EXT_DIR/llm.so"
+    $PHP_SHELL -c "cp $LLM_TARGET_DIR/$EXT_SO $PHP_EXT_DIR/llm.so"
     if test $? -ne 0; then
       AC_MSG_ERROR([Failed to copy extension to $PHP_EXT_DIR])
     fi
     AC_MSG_RESULT([success])
-
     # Define the extension name for PHP (shared linking)
     PHP_NEW_EXTENSION(llm, llm.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)
     
@@ -201,10 +213,11 @@ if test "$PHP_LLM" != "no"; then
     Build type: $BUILD_TYPE
     Build mode: $CARGO_BUILD_MODE
     OS: $UNAME_S
+    Source dir: $LLM_SRC_DIR
   ])
   
   if test "$BUILD_TYPE" = "static"; then
-    AC_MSG_NOTICE([Static library: $CARGO_TARGET_DIR/$EXT_LIB])
+    AC_MSG_NOTICE([Static library: $LLM_TARGET_DIR/$EXT_LIB])
   else
     AC_MSG_NOTICE([Extension file: $PHP_EXT_DIR/llm.so])
   fi
