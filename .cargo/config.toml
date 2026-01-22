@@ -1,0 +1,2 @@
+# Cross-platform cargo configuration
+# No hardcoded target - let cargo detect the platform automatically

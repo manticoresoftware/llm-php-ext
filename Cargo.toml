@@ -1,0 +1,39 @@
+[package]
+name = "llm"
+version = "0.1.0"
+edition = "2021"
+description = "High-level LLM extension with structured output and tool calling support"
+authors = ["Manticore Team"]
+license = "Apache-2.0"
+repository = "https://github.com/manticoresearch/llm-php-ext"
+
+[lib]
+name = "llm"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+ext-php-rs = "0.15.3"
+octolib = "0.5.0"
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+
+[build-dependencies]
+ext-php-rs = "0.15.3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+# Platform-specific configurations
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS-specific dependencies if needed
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific dependencies if needed
+
+[target.'cfg(windows)'.dependencies]
+# Windows-specific dependencies if needed
