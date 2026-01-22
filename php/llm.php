@@ -236,7 +236,7 @@ namespace {
 
         public function getModel(): string {}
 
-        public function getResponseId(): ?string {}
+        public function getId(): ?string {}
 
         public function hasToolCalls(): bool {}
 

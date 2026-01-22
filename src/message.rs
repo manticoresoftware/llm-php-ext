@@ -91,7 +91,7 @@ impl Message {
             role: "assistant".to_string(),
             content: response.get_content(),
             tool_call_id: None,
-            id: response.get_response_id(),
+            id: response.get_id(),
             tool_calls: tool_calls_json,
         })
     }

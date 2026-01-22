@@ -318,7 +318,7 @@ pub struct ToolResponse {
     tool_calls: Vec<ToolCall>,
     usage: Usage,
     model: String,
-    response_id: Option<String>,
+    id: Option<String>,
 }
 
 // Internal constructor - not exposed to PHP
@@ -328,7 +328,7 @@ impl ToolResponse {
         tool_calls: Vec<ToolCall>,
         usage: Option<TokenUsage>,
         model: String,
-        response_id: Option<String>,
+        id: Option<String>,
     ) -> Self {
         let usage = usage.unwrap_or(TokenUsage {
             prompt_tokens: 0,
@@ -344,7 +344,7 @@ impl ToolResponse {
             tool_calls,
             usage: Usage::from_octo(usage),
             model,
-            response_id,
+            id,
         }
     }
 }
@@ -367,8 +367,8 @@ impl ToolResponse {
         self.model.clone()
     }
 
-    pub fn get_response_id(&self) -> Option<String> {
-        self.response_id.clone()
+    pub fn get_id(&self) -> Option<String> {
+        self.id.clone()
     }
 
     pub fn has_tool_calls(&self) -> bool {
@@ -387,8 +387,8 @@ impl ToolResponse {
 
         arr.insert("usage", self.usage.clone())?;
         arr.insert("model", self.model.clone())?;
-        if let Some(ref resp_id) = self.response_id {
-            arr.insert("response_id", &**resp_id)?;
+        if let Some(ref resp_id) = self.id {
+            arr.insert("id", &**resp_id)?;
         }
         Ok(arr.into_zval(false)?)
     }
@@ -415,7 +415,7 @@ impl ToolResponse {
                 "total_tokens": self.usage.get_total_tokens(),
             },
             "model": self.model,
-            "response_id": self.response_id,
+            "id": self.id,
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
@@ -506,7 +506,7 @@ impl ToolBuilder {
             tool_calls,
             response.exchange.usage,
             model,
-            response.response_id,
+            response.id,
         ))
     }
 

@@ -200,7 +200,7 @@ mod tests {
                 "total_tokens": 70
             },
             "model": "gpt-4",
-            "response_id": "resp_456"
+            "id": "resp_456"
         });
 
         let serialized = serde_json::to_string(&response).unwrap();
