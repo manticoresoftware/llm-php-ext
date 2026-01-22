@@ -330,7 +330,7 @@ impl ToolResponse {
         model: String,
         response_id: Option<String>,
     ) -> Self {
-        let usage = usage.unwrap_or_else(|| TokenUsage {
+        let usage = usage.unwrap_or(TokenUsage {
             prompt_tokens: 0,
             output_tokens: 0,
             reasoning_tokens: 0,
@@ -356,7 +356,7 @@ impl ToolResponse {
     }
 
     pub fn get_tool_calls(&self) -> Vec<ToolCall> {
-        self.tool_calls.iter().map(|c| c.clone()).collect()
+        self.tool_calls.to_vec()
     }
 
     pub fn get_usage(&self) -> Usage {
@@ -464,7 +464,7 @@ impl ToolBuilder {
 impl ToolBuilder {
     /// Complete with tool calling
     pub fn complete(&self, messages: &Zval) -> PhpResult<ToolResponse> {
-        let this = &*self;
+        let this = self;
         let rt = this.runtime.clone();
 
         let messages_vec = php_to_messages(messages)?;
@@ -515,7 +515,7 @@ impl ToolBuilder {
         self_: &'a mut ZendClassObject<ToolBuilder>,
         tool: &mut Tool,
     ) -> &'a mut ZendClassObject<ToolBuilder> {
-        (*self_).tools.push(tool.clone());
+        self_.tools.push(tool.clone());
         self_
     }
 
@@ -537,29 +537,29 @@ impl ToolBuilder {
     }
 
     /// Set auto execute
-    pub fn set_auto_execute<'a>(
-        self_: &'a mut ZendClassObject<ToolBuilder>,
+    pub fn set_auto_execute(
+        self_: &mut ZendClassObject<ToolBuilder>,
         auto: bool,
-    ) -> &'a mut ZendClassObject<ToolBuilder> {
-        (*self_).auto_execute = auto;
+    ) -> &mut ZendClassObject<ToolBuilder> {
+        self_.auto_execute = auto;
         self_
     }
 
     /// Set temperature
-    pub fn set_temperature<'a>(
-        self_: &'a mut ZendClassObject<ToolBuilder>,
+    pub fn set_temperature(
+        self_: &mut ZendClassObject<ToolBuilder>,
         temperature: f64,
-    ) -> &'a mut ZendClassObject<ToolBuilder> {
-        (*self_).temperature = temperature as f32;
+    ) -> &mut ZendClassObject<ToolBuilder> {
+        self_.temperature = temperature as f32;
         self_
     }
 
     /// Set max tokens
-    pub fn set_max_tokens<'a>(
-        self_: &'a mut ZendClassObject<ToolBuilder>,
+    pub fn set_max_tokens(
+        self_: &mut ZendClassObject<ToolBuilder>,
         max_tokens: i64,
-    ) -> &'a mut ZendClassObject<ToolBuilder> {
-        (*self_).max_tokens = max_tokens as u32;
+    ) -> &mut ZendClassObject<ToolBuilder> {
+        self_.max_tokens = max_tokens as u32;
         self_
     }
 }

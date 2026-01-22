@@ -9,7 +9,7 @@ pub trait IntoPhpException {
 }
 
 // Implement for references to avoid clone issues
-impl<'a> IntoPhpException for &'a ProviderError {
+impl IntoPhpException for &ProviderError {
     fn into_php_exception(self) -> PhpException {
         match self {
             ProviderError::NetworkError(msg) => {
@@ -43,7 +43,7 @@ impl<'a> IntoPhpException for &'a ProviderError {
     }
 }
 
-impl<'a> IntoPhpException for &'a StructuredOutputError {
+impl IntoPhpException for &StructuredOutputError {
     fn into_php_exception(self) -> PhpException {
         // Use a catch-all pattern since the enum structure may vary
         PhpException::from_class::<crate::error::LLMStructuredOutputException>(format!(
@@ -53,7 +53,7 @@ impl<'a> IntoPhpException for &'a StructuredOutputError {
     }
 }
 
-impl<'a> IntoPhpException for &'a ToolCallError {
+impl IntoPhpException for &ToolCallError {
     fn into_php_exception(self) -> PhpException {
         // Use a catch-all pattern since the enum structure may vary
         PhpException::from_class::<crate::error::LLMToolCallException>(format!(

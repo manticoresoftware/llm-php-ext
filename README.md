@@ -331,6 +331,36 @@ make test
 php tests/run_tests.php
 ```
 
+## Continuous Integration
+
+This project uses GitHub Actions for continuous integration. The CI pipeline:
+
+- ✅ Runs on every push and pull request to `main` and `develop` branches
+- ✅ Checks code formatting with `cargo fmt`
+- ✅ Lints code with `cargo clippy`
+- ✅ Runs Rust unit tests
+- ✅ Builds extension on Ubuntu and macOS
+- ✅ Runs PHP integration tests
+- ✅ Generates and verifies PHP stubs
+
+### Running CI Locally
+
+You can run the entire CI pipeline locally before pushing:
+
+```bash
+make ci
+```
+
+This will execute all CI checks in order:
+1. Code formatting check
+2. Clippy linting
+3. Rust unit tests
+4. Extension build
+5. PHP integration tests
+6. Stub generation
+
+For detailed CI documentation, see [CI.md](CI.md).
+
 ## Building from Source
 
 ### Development Setup

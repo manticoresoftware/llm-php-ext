@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Rust code quality checks
+  rust-quality:
+    name: Rust Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run cargo fmt check
+        run: cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run cargo test
+        run: cargo test --verbose
+
+  # Build and test on Ubuntu
+  ubuntu:
+    name: Ubuntu Build & Test
+    runs-on: ubuntu-latest
+    needs: rust-quality
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install PHP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php php-dev php-cli php-json
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build extension (debug)
+        run: cargo build --verbose
+
+      - name: Build extension (release)
+        run: cargo build --release --verbose
+
+      - name: Run PHP tests
+        run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
+
+      - name: Generate stubs
+        run: cargo php stubs --stdout > php/llm.php
+
+      - name: Verify stubs generated
+        run: |
+          if [ ! -f php/llm.php ]; then
+            echo "Error: Stub file not generated"
+            exit 1
+          fi
+          if [ ! -s php/llm.php ]; then
+            echo "Error: Stub file is empty"
+            exit 1
+          fi
+          echo "Stubs generated successfully"
+
+  # Build and test on macOS
+  macos:
+    name: macOS Build & Test
+    runs-on: macos-latest
+    needs: rust-quality
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM 17
+        run: |
+          brew install llvm@17
+          echo "LIBCLANG_PATH=/opt/homebrew/opt/llvm@17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/opt/homebrew/opt/llvm@17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/opt/homebrew/opt/llvm@17/bin" >> $GITHUB_PATH
+
+      - name: Verify LLVM installation
+        run: |
+          echo "LIBCLANG_PATH: $LIBCLANG_PATH"
+          echo "LLVM_CONFIG_PATH: $LLVM_CONFIG_PATH"
+          ls -la /opt/homebrew/opt/llvm@17/lib || ls -la /usr/local/opt/llvm@17/lib || echo "LLVM lib path check"
+          which llvm-config
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run cargo clippy (macOS)
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build extension (debug)
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          cargo build --verbose
+
+      - name: Build extension (release)
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          cargo build --release --verbose
+
+      - name: Run PHP tests
+        run: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
+
+      - name: Generate stubs
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          cargo php stubs --stdout > php/llm.php
+
+      - name: Verify stubs generated
+        run: |
+          if [ ! -f php/llm.php ]; then
+            echo "Error: Stub file not generated"
+            exit 1
+          fi
+          if [ ! -s php/llm.php ]; then
+            echo "Error: Stub file is empty"
+            exit 1
+          fi
+          echo "Stubs generated successfully"
+
+  # Final status check
+  status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [ubuntu, macos]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.ubuntu.result }}" != "success" ] || [ "${{ needs.macos.result }}" != "success" ]; then
+            echo "CI failed on one or more platforms"
+            exit 1
+          fi
+          echo "All CI checks passed successfully!"

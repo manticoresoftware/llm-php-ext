@@ -289,51 +289,51 @@ impl MessageCollection {
         self_: &'a mut ZendClassObject<MessageCollection>,
         message: &mut Message,
     ) -> &'a mut ZendClassObject<MessageCollection> {
-        (*self_).messages.push(message.clone());
+        self_.messages.push(message.clone());
         self_
     }
 
     /// Add a user message
-    pub fn add_user<'a>(
-        self_: &'a mut ZendClassObject<MessageCollection>,
+    pub fn add_user(
+        self_: &mut ZendClassObject<MessageCollection>,
         content: String,
-    ) -> &'a mut ZendClassObject<MessageCollection> {
+    ) -> &mut ZendClassObject<MessageCollection> {
         if let Ok(msg) = Message::user(content) {
-            (*self_).messages.push(msg);
+            self_.messages.push(msg);
         }
         self_
     }
 
     /// Add an assistant message
-    pub fn add_assistant<'a>(
-        self_: &'a mut ZendClassObject<MessageCollection>,
+    pub fn add_assistant(
+        self_: &mut ZendClassObject<MessageCollection>,
         content: String,
-    ) -> &'a mut ZendClassObject<MessageCollection> {
+    ) -> &mut ZendClassObject<MessageCollection> {
         if let Ok(msg) = Message::assistant(content) {
-            (*self_).messages.push(msg);
+            self_.messages.push(msg);
         }
         self_
     }
 
     /// Add a system message
-    pub fn add_system<'a>(
-        self_: &'a mut ZendClassObject<MessageCollection>,
+    pub fn add_system(
+        self_: &mut ZendClassObject<MessageCollection>,
         content: String,
-    ) -> &'a mut ZendClassObject<MessageCollection> {
+    ) -> &mut ZendClassObject<MessageCollection> {
         if let Ok(msg) = Message::system(content) {
-            (*self_).messages.push(msg);
+            self_.messages.push(msg);
         }
         self_
     }
 
     /// Add a tool result message
-    pub fn add_tool_result<'a>(
-        self_: &'a mut ZendClassObject<MessageCollection>,
+    pub fn add_tool_result(
+        self_: &mut ZendClassObject<MessageCollection>,
         tool_call_id: String,
         result: String,
-    ) -> &'a mut ZendClassObject<MessageCollection> {
+    ) -> &mut ZendClassObject<MessageCollection> {
         if let Ok(msg) = Message::tool(tool_call_id, result) {
-            (*self_).messages.push(msg);
+            self_.messages.push(msg);
         }
         self_
     }

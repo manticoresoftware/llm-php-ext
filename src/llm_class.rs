@@ -11,6 +11,7 @@ use crate::tool_builder::Tool;
 
 /// Main LLM class for interacting with language models
 #[php_class]
+#[allow(clippy::upper_case_acronyms)]
 pub struct LLM {
     model: String,
     temperature: f32,
@@ -67,7 +68,7 @@ impl LLM {
             .block_on(async { provider.chat_completion(params).await })
             .map_err(|e| e.into_php_exception())?;
 
-        let usage = response.exchange.usage.unwrap_or_else(|| TokenUsage {
+        let usage = response.exchange.usage.unwrap_or(TokenUsage {
             prompt_tokens: 0,
             output_tokens: 0,
             reasoning_tokens: 0,
@@ -148,47 +149,44 @@ impl LLM {
     }
 
     /// Set temperature
-    pub fn set_temperature<'a>(
-        self_: &'a mut ZendClassObject<LLM>,
+    pub fn set_temperature(
+        self_: &mut ZendClassObject<LLM>,
         _temperature: f64,
-    ) -> &'a mut ZendClassObject<LLM> {
-        (*self_).temperature = _temperature as f32;
+    ) -> &mut ZendClassObject<LLM> {
+        self_.temperature = _temperature as f32;
         self_
     }
 
     /// Set max tokens
-    pub fn set_max_tokens<'a>(
-        self_: &'a mut ZendClassObject<LLM>,
+    pub fn set_max_tokens(
+        self_: &mut ZendClassObject<LLM>,
         _max_tokens: i64,
-    ) -> &'a mut ZendClassObject<LLM> {
-        (*self_).max_tokens = _max_tokens as u32;
+    ) -> &mut ZendClassObject<LLM> {
+        self_.max_tokens = _max_tokens as u32;
         self_
     }
 
     /// Set top_p
-    pub fn set_top_p<'a>(
-        self_: &'a mut ZendClassObject<LLM>,
-        _top_p: f64,
-    ) -> &'a mut ZendClassObject<LLM> {
-        (*self_).top_p = _top_p as f32;
+    pub fn set_top_p(self_: &mut ZendClassObject<LLM>, _top_p: f64) -> &mut ZendClassObject<LLM> {
+        self_.top_p = _top_p as f32;
         self_
     }
 
     /// Set frequency penalty
-    pub fn set_frequency_penalty<'a>(
-        self_: &'a mut ZendClassObject<LLM>,
+    pub fn set_frequency_penalty(
+        self_: &mut ZendClassObject<LLM>,
         _penalty: f64,
-    ) -> &'a mut ZendClassObject<LLM> {
-        (*self_).frequency_penalty = _penalty as f32;
+    ) -> &mut ZendClassObject<LLM> {
+        self_.frequency_penalty = _penalty as f32;
         self_
     }
 
     /// Set presence penalty
-    pub fn set_presence_penalty<'a>(
-        self_: &'a mut ZendClassObject<LLM>,
+    pub fn set_presence_penalty(
+        self_: &mut ZendClassObject<LLM>,
         _penalty: f64,
-    ) -> &'a mut ZendClassObject<LLM> {
-        (*self_).presence_penalty = _penalty as f32;
+    ) -> &mut ZendClassObject<LLM> {
+        self_.presence_penalty = _penalty as f32;
         self_
     }
 }

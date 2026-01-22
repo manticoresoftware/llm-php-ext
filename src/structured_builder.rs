@@ -47,7 +47,7 @@ impl StructuredBuilder {
 impl StructuredBuilder {
     /// Complete with structured output
     pub fn complete(&self, messages: &Zval) -> PhpResult<StructuredResponse> {
-        let this = &*self;
+        let this = self;
         let rt = this.runtime.clone();
 
         let messages_vec = php_to_messages(messages)?;
@@ -104,7 +104,7 @@ impl StructuredBuilder {
         Ok(StructuredResponse::new(
             response.content,
             structured_php,
-            response.exchange.usage.unwrap_or_else(|| TokenUsage {
+            response.exchange.usage.unwrap_or(TokenUsage {
                 prompt_tokens: 0,
                 output_tokens: 0,
                 reasoning_tokens: 0,
@@ -118,42 +118,38 @@ impl StructuredBuilder {
     }
 
     /// Set JSON schema
-    pub fn with_schema<'a>(
-        self_: &'a mut ZendClassObject<StructuredBuilder>,
+    pub fn with_schema(
+        self_: &mut ZendClassObject<StructuredBuilder>,
         schema: String,
-    ) -> &'a mut ZendClassObject<StructuredBuilder> {
-        (*self_).schema = Some(schema);
+    ) -> &mut ZendClassObject<StructuredBuilder> {
+        self_.schema = Some(schema);
         self_
     }
 
     /// Set format ('json' or 'json_schema')
-    pub fn with_format<'a>(
-        self_: &'a mut ZendClassObject<StructuredBuilder>,
+    pub fn with_format(
+        self_: &mut ZendClassObject<StructuredBuilder>,
         format: String,
-    ) -> &'a mut ZendClassObject<StructuredBuilder> {
-        if format != "json" && format != "json_schema" {
-            // Invalid format, just ignore for builder pattern
-            return self_;
-        }
-        (*self_).format = format;
+    ) -> &mut ZendClassObject<StructuredBuilder> {
+        self_.format = format;
         self_
     }
 
     /// Set temperature
-    pub fn set_temperature<'a>(
-        self_: &'a mut ZendClassObject<StructuredBuilder>,
+    pub fn set_temperature(
+        self_: &mut ZendClassObject<StructuredBuilder>,
         temperature: f64,
-    ) -> &'a mut ZendClassObject<StructuredBuilder> {
-        (*self_).temperature = temperature as f32;
+    ) -> &mut ZendClassObject<StructuredBuilder> {
+        self_.temperature = temperature as f32;
         self_
     }
 
     /// Set max tokens
-    pub fn set_max_tokens<'a>(
-        self_: &'a mut ZendClassObject<StructuredBuilder>,
+    pub fn set_max_tokens(
+        self_: &mut ZendClassObject<StructuredBuilder>,
         max_tokens: i64,
-    ) -> &'a mut ZendClassObject<StructuredBuilder> {
-        (*self_).max_tokens = max_tokens as u32;
+    ) -> &mut ZendClassObject<StructuredBuilder> {
+        self_.max_tokens = max_tokens as u32;
         self_
     }
 }
