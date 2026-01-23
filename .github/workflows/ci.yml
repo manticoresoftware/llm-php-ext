@@ -293,22 +293,22 @@ jobs:
         run: |
           source $HOME/.cargo/env
           LIBCLANG_PATH=/usr/lib \
-          cargo build --target x86_64-unknown-linux-musl --verbose
+          cargo build --verbose
 
       - name: Build extension (release)
         run: |
           source $HOME/.cargo/env
           LIBCLANG_PATH=/usr/lib \
-          cargo build --release --target x86_64-unknown-linux-musl --verbose
+          cargo build --release --verbose
 
 
       - name: Verify extension built
         run: |
-          file target/x86_64-unknown-linux-musl/debug/libllm.so
-          ls -lh target/x86_64-unknown-linux-musl/debug/libllm.so
+          file target/debug/libllm.so
+          ls -lh target/debug/libllm.so
 
       - name: Run PHP tests
-        run: php -d 'extension=target/x86_64-unknown-linux-musl/debug/libllm.so' tests/run_tests.php
+        run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
 
   # Final status check
   status:
