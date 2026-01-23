@@ -33,8 +33,9 @@ if test "$PHP_LLM" != "no"; then
   UNAME_S=$(uname -s)
   AC_MSG_RESULT([$UNAME_S])
 
-  # macOS-specific configuration
+  # Configure LLVM/Clang for ext-php-rs (required for bindgen)
   if test "$UNAME_S" = "Darwin"; then
+    # macOS-specific configuration
     AC_MSG_CHECKING([for LLVM 17 (required for PHP 8.5 on macOS)])
     
     # Check for LLVM 17 in common locations
@@ -59,7 +60,57 @@ if test "$PHP_LLM" != "no"; then
     export LLVM_CONFIG_PATH="$LLVM_PATH/bin/llvm-config"
     export PATH="$LLVM_PATH/bin:$PATH"
     
-    AC_MSG_NOTICE([Using LLVM 17 from: $LLVM_PATH])
+    AC_MSG_NOTICE([Using LLVM from: $LLVM_PATH])
+  else
+    # Linux/Unix configuration
+    AC_MSG_CHECKING([for libclang (required for ext-php-rs)])
+    
+    # Check if LIBCLANG_PATH is already set
+    if test -n "$LIBCLANG_PATH" && test -d "$LIBCLANG_PATH"; then
+      AC_MSG_RESULT([using LIBCLANG_PATH=$LIBCLANG_PATH])
+    else
+      # Try to find libclang in common locations (prefer newer versions)
+      LIBCLANG_FOUND=0
+      for CLANG_LIB_DIR in \
+        /usr/lib/llvm-18/lib \
+        /usr/lib/llvm-17/lib \
+        /usr/lib/llvm-16/lib \
+        /usr/lib/llvm-15/lib \
+        /usr/lib/llvm-14/lib \
+        /usr/lib/x86_64-linux-gnu \
+        /usr/lib64 \
+        /usr/lib \
+        /usr/local/lib; do
+        if test -f "$CLANG_LIB_DIR/libclang.so" || test -f "$CLANG_LIB_DIR/libclang.so.1"; then
+          export LIBCLANG_PATH="$CLANG_LIB_DIR"
+          LIBCLANG_FOUND=1
+          AC_MSG_RESULT([found at $LIBCLANG_PATH])
+          break
+        fi
+      done
+      
+      if test $LIBCLANG_FOUND -eq 0; then
+        AC_MSG_ERROR([
+          libclang not found. ext-php-rs requires libclang for building.
+          Install it with:
+            Ubuntu/Debian: sudo apt-get install libclang-dev clang
+            Fedora/RHEL: sudo dnf install clang-devel
+            Arch: sudo pacman -S clang
+          Or set LIBCLANG_PATH environment variable to your libclang library directory.
+        ])
+      fi
+    fi
+    
+    # Also set clang binary path for bindgen
+    if test -d "/usr/lib/llvm-17/bin"; then
+      export PATH="/usr/lib/llvm-17/bin:$PATH"
+      AC_MSG_NOTICE([Using LLVM 17 binaries from: /usr/lib/llvm-17/bin])
+    elif test -d "/usr/lib/llvm-18/bin"; then
+      export PATH="/usr/lib/llvm-18/bin:$PATH"
+      AC_MSG_NOTICE([Using LLVM 18 binaries from: /usr/lib/llvm-18/bin])
+    fi
+    
+    AC_MSG_NOTICE([Using libclang from: $LIBCLANG_PATH])
   fi
 
   # Determine extension filename and build type based on static/shared
@@ -138,11 +189,17 @@ if test "$PHP_LLM" != "no"; then
   
   # Build with appropriate environment and manifest path
   if test "$UNAME_S" = "Darwin"; then
+    # macOS build with LLVM
     LIBCLANG_PATH="$LIBCLANG_PATH" \
     LLVM_CONFIG_PATH="$LLVM_CONFIG_PATH" \
     PATH="$LLVM_PATH/bin:$PATH" \
     cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   else
+    # Linux/Unix build with libclang
+    # Set bindgen-specific environment variables to use correct clang version
+    LIBCLANG_PATH="$LIBCLANG_PATH" \
+    CLANG_PATH="$LIBCLANG_PATH/../bin/clang" \
+    BINDGEN_EXTRA_CLANG_ARGS="-I$LIBCLANG_PATH/../lib/clang/$(ls $LIBCLANG_PATH/../lib/clang 2>/dev/null | sort -V | tail -1)/include" \
     cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   fi
 
@@ -198,28 +255,14 @@ if test "$PHP_LLM" != "no"; then
     PHP_SUBST(LLM_SHARED_LIBADD)
     
   else
-    # Shared linking: Copy the built extension to the PHP extension directory
-    AC_MSG_CHECKING([for PHP extension directory])
-    PHP_EXT_DIR=$($PHP_CONFIG --extension-dir 2>/dev/null)
-    if test -z "$PHP_EXT_DIR"; then
-      PHP_EXT_DIR="modules"
-    fi
-    AC_MSG_RESULT([$PHP_EXT_DIR])
-
-    # Copy the extension
-    AC_MSG_CHECKING([copying extension to $PHP_EXT_DIR])
-    $PHP_SHELL -c "cp $LLM_TARGET_DIR/$EXT_SO $PHP_EXT_DIR/llm.so"
-    if test $? -ne 0; then
-      AC_MSG_ERROR([Failed to copy extension to $PHP_EXT_DIR])
-    fi
+    # Shared linking: The Rust library is already built
+    # We don't use PHP_NEW_EXTENSION because ext-php-rs handles module registration
+    AC_MSG_CHECKING([configuring shared linking])
     AC_MSG_RESULT([success])
-    # Define the extension name for PHP (shared linking)
-    PHP_NEW_EXTENSION(llm, llm.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)
     
-    # Since we're building with cargo, we don't need PHP to compile anything
-    # Override the build commands
-    PHP_SUBST(LLM_SHARED_LIBADD)
-    PHP_SUBST(EXT_LLM)
+    # The extension is already built by cargo
+    # It will be available at: $LLM_TARGET_DIR/$EXT_SO
+    # Users need to manually copy it or use: cargo php install
   fi
 
   AC_MSG_NOTICE([
@@ -236,6 +279,7 @@ if test "$PHP_LLM" != "no"; then
   if test "$BUILD_TYPE" = "static"; then
     AC_MSG_NOTICE([Static library: $LLM_TARGET_DIR/$EXT_LIB])
   else
-    AC_MSG_NOTICE([Extension file: $PHP_EXT_DIR/llm.so])
+    AC_MSG_NOTICE([Shared library: $LLM_TARGET_DIR/$EXT_SO])
+    AC_MSG_NOTICE([Extension will be installed by 'make install'])
   fi
 fi
