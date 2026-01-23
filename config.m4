@@ -232,10 +232,21 @@ if test "$PHP_LLM" != "no"; then
     cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   else
     # Linux/Unix build with libclang
+    # Detect musl and set appropriate rustflags
+    AC_MSG_CHECKING([for musl libc])
+    if ldd --version 2>&1 | grep -q musl; then
+      AC_MSG_RESULT([yes - setting -crt-static flag for musl])
+      MUSL_RUSTFLAGS="-C target-feature=-crt-static"
+    else
+      AC_MSG_RESULT([no])
+      MUSL_RUSTFLAGS=""
+    fi
+    
     # Set bindgen-specific environment variables to use correct clang version
     LIBCLANG_PATH="$LIBCLANG_PATH" \
     CLANG_PATH="$LIBCLANG_PATH/../bin/clang" \
     BINDGEN_EXTRA_CLANG_ARGS="-I$LIBCLANG_PATH/../lib/clang/$(ls $LIBCLANG_PATH/../lib/clang 2>/dev/null | sort -V | tail -1)/include" \
+    RUSTFLAGS="$MUSL_RUSTFLAGS" \
     cargo $CARGO_BUILD_MODE --manifest-path="$CARGO_MANIFEST" 2>&1
   fi
 
