@@ -95,6 +95,9 @@ jobs:
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
 
+      - name: Install cargo-php
+        run: cargo install cargo-php
+
       - name: Generate stubs
         run: cargo php stubs --stdout > php/llm.php
 
@@ -118,6 +121,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install PHP 8.4
+        run: |
+          brew tap shivammathur/php
+          brew install shivammathur/php/php@8.4
+          brew link --overwrite --force shivammathur/php/php@8.4
+          php -v
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -167,6 +177,9 @@ jobs:
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
           PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
           cargo build --verbose
+
+      - name: Install cargo-php
+        run: cargo install cargo-php
 
       - name: Build extension (release)
         run: |

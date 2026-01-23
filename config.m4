@@ -113,10 +113,31 @@ if test "$PHP_LLM" != "no"; then
     AC_MSG_NOTICE([Using libclang from: $LIBCLANG_PATH])
   fi
 
-  # Determine extension filename and build type based on static/shared
+  # Auto-detect build type based on PHP's configuration
+  # Priority:
+  #   1. Explicit --with-llm-static flag
+  #   2. PHP built with --disable-shared or --enable-static (ext_shared=no)
+  #   3. Default to shared
+  
+  AC_MSG_CHECKING([whether to build llm extension as static or shared])
+  
   if test "$PHP_LLM_STATIC" != "no"; then
-    # Static linking
+    # Explicit --with-llm-static flag
     BUILD_TYPE="static"
+    AC_MSG_RESULT([static (explicit --with-llm-static)])
+  elif test "$ext_shared" = "no"; then
+    # PHP is built statically (--disable-shared or --enable-static)
+    BUILD_TYPE="static"
+    AC_MSG_RESULT([static (PHP built with --disable-shared or --enable-static)])
+  else
+    # Default to shared
+    BUILD_TYPE="shared"
+    AC_MSG_RESULT([shared (default)])
+  fi
+  
+  # Determine extension filename based on build type
+  if test "$BUILD_TYPE" = "static"; then
+    # Static linking - build .a library
     case "$UNAME_S" in
       Darwin)
         EXT_LIB="libllm.a"
@@ -131,8 +152,7 @@ if test "$PHP_LLM" != "no"; then
     CARGO_BUILD_MODE="build --release"
     CARGO_TARGET_DIR="target/release"
   else
-    # Shared linking (default)
-    BUILD_TYPE="shared"
+    # Shared linking - build .so/.dylib
     case "$UNAME_S" in
       Darwin)
         EXT_SO="libllm.dylib"
@@ -224,45 +244,47 @@ if test "$PHP_LLM" != "no"; then
   fi
   # Handle static vs shared linking
   if test "$BUILD_TYPE" = "static"; then
-    # Static linking: Add the static library to PHP's build
+    # Static linking: Embed the Rust static library directly into PHP binary
     AC_MSG_CHECKING([configuring static linking])
     
     # Get the full path to the static library
     LLM_STATIC_LIB="$LLM_TARGET_DIR/$EXT_LIB"
     
-    # Add the static library to EXTRA_LDFLAGS
-    EXTRA_LDFLAGS="$EXTRA_LDFLAGS $LLM_STATIC_LIB"
+    # Add the static library directly to PHP's linker flags
+    # This embeds the extension into the PHP binary
+    EXTRA_LIBS="$EXTRA_LIBS $LLM_STATIC_LIB"
     
-    # For static linking, we need to link against system libraries that Rust might need
+    # Add required system libraries that Rust depends on
     case "$UNAME_S" in
       Darwin)
         # macOS: link against System framework and other required libs
-        EXTRA_LDFLAGS="$EXTRA_LDFLAGS -framework System -framework CoreFoundation -framework Security"
+        EXTRA_LIBS="$EXTRA_LIBS -framework System -framework CoreFoundation -framework Security"
         ;;
       Linux)
         # Linux: link against pthread, dl, etc.
-        EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lpthread -ldl -lm"
+        EXTRA_LIBS="$EXTRA_LIBS -lpthread -ldl -lm -lgcc_s"
         ;;
     esac
     
-    PHP_SUBST(EXTRA_LDFLAGS)
-    AC_MSG_RESULT([success])
-    # Define the extension for PHP (static linking)
-    PHP_NEW_EXTENSION(llm, llm.c, $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)
+    # Register the extension as built-in (no C sources needed)
+    # ext-php-rs already provides get_module() symbol in the .a file
+    PHP_ADD_BUILD_DIR(ext/llm, 1)
     
-    # Add the static library to the extension's shared libadd
-    PHP_ADD_LIBRARY_WITH_PATH(llm, $LLM_TARGET_DIR, LLM_SHARED_LIBADD)
-    PHP_SUBST(LLM_SHARED_LIBADD)
+    PHP_SUBST(EXTRA_LIBS)
+    AC_MSG_RESULT([success - extension will be embedded in PHP binary])
     
   else
-    # Shared linking: The Rust library is already built
-    # We don't use PHP_NEW_EXTENSION because ext-php-rs handles module registration
+    # Shared linking: Install the .so file to PHP extensions directory
     AC_MSG_CHECKING([configuring shared linking])
-    AC_MSG_RESULT([success])
     
-    # The extension is already built by cargo
-    # It will be available at: $LLM_TARGET_DIR/$EXT_SO
-    # Users need to manually copy it or use: cargo php install
+    # Export variables for Makefile.frag
+    AC_SUBST(LLM_TARGET_DIR)
+    AC_SUBST(EXT_SO)
+    
+    # Create installation rule for the shared extension
+    PHP_ADD_MAKEFILE_FRAGMENT([Makefile.frag])
+    
+    AC_MSG_RESULT([success - extension will be installed during 'make install'])
   fi
 
   AC_MSG_NOTICE([
