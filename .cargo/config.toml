@@ -16,3 +16,9 @@ rustflags = [
 CFLAGS = "-D_FORTIFY_SOURCE=0"
 CXXFLAGS = "-D_FORTIFY_SOURCE=0"
 
+# Alpine Linux (musl) configuration
+# ext-php-rs requires dynamic CRT linking for musl to work properly
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=-crt-static"]
+
+

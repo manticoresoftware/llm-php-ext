@@ -32,9 +32,11 @@ help:
 	@echo "  make ci             - Run all CI checks locally"
 	@echo ""
 	@echo "Cross-platform builds:"
-	@echo "  make build-linux    - Build for Linux"
+	@echo "  make build-linux    - Build for Linux (glibc)"
 	@echo "  make build-macos    - Build for macOS"
 	@echo "  make build-windows  - Build for Windows"
+	@echo "  make build-musl     - Build for Alpine/musl (debug)"
+	@echo "  make build-musl-release - Build for Alpine/musl (release)"
 	@echo ""
 	@echo "Current platform: $(UNAME_S)"
 	@echo "Extension file: $(EXT_FILE)"
@@ -160,3 +162,16 @@ build-windows:
 
 build-windows-release:
 	cargo build --release --target x86_64-pc-windows-msvc
+
+# Build for musl (Alpine Linux) with dynamic CRT linking
+build-musl:
+	@echo "Building for musl (Alpine Linux) - debug mode..."
+	@echo "Note: Requires clang-dev and llvm-dev packages"
+	LIBCLANG_PATH=/usr/lib \
+	cargo build --target x86_64-unknown-linux-musl
+
+build-musl-release:
+	@echo "Building for musl (Alpine Linux) - release mode..."
+	@echo "Note: Requires clang-dev and llvm-dev packages"
+	LIBCLANG_PATH=/usr/lib \
+	cargo build --release --target x86_64-unknown-linux-musl
