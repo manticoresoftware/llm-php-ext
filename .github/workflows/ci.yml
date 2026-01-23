@@ -259,8 +259,6 @@ jobs:
       - name: Install dependencies
         run: |
           apk add --no-cache \
-            rust \
-            cargo \
             php84-dev \
             php84-cli \
             clang-dev \
@@ -268,15 +266,23 @@ jobs:
             musl-dev \
             gcc \
             g++ \
-            git
+            git \
+            curl
           ln -sf /usr/bin/php84 /usr/bin/php
           ln -sf /usr/bin/php-config84 /usr/bin/php-config
           ln -sf /usr/bin/phpize84 /usr/bin/phpize
+
+      - name: Install Rust via rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          source $HOME/.cargo/env
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
 
 
       - name: Verify environment
         run: |
+          source $HOME/.cargo/env
           rustc --version
           cargo --version
           php -v
@@ -285,13 +291,16 @@ jobs:
 
       - name: Build extension (debug)
         run: |
+          source $HOME/.cargo/env
           LIBCLANG_PATH=/usr/lib \
           cargo build --target x86_64-unknown-linux-musl --verbose
 
       - name: Build extension (release)
         run: |
+          source $HOME/.cargo/env
           LIBCLANG_PATH=/usr/lib \
           cargo build --release --target x86_64-unknown-linux-musl --verbose
+
 
       - name: Verify extension built
         run: |
