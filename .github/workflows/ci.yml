@@ -251,6 +251,7 @@ jobs:
     needs: rust-quality
     container:
       image: alpine:3.21
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -260,14 +261,19 @@ jobs:
           apk add --no-cache \
             rust \
             cargo \
-            php85-dev \
-            php85-cli \
+            php84-dev \
+            php84-cli \
             clang-dev \
             llvm19-dev \
             musl-dev \
             gcc \
             g++ \
             git
+          ln -sf /usr/bin/php84 /usr/bin/php
+          ln -sf /usr/bin/php-config84 /usr/bin/php-config
+          ln -sf /usr/bin/phpize84 /usr/bin/phpize
+
+
 
       - name: Verify environment
         run: |
