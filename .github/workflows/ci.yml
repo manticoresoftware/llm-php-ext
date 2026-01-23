@@ -132,12 +132,23 @@ jobs:
 
   # Build and test on macOS
   macos:
-    name: macOS Build & Test
-    runs-on: macos-latest
+    name: macOS Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: rust-quality
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]  # macos-15 = ARM64 (Apple Silicon), macos-15-intel = Intel x86_64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Detect architecture and set Homebrew prefix
+        run: |
+          echo "Architecture: $(uname -m)"
+          HOMEBREW_PREFIX=$(brew --prefix)
+          echo "HOMEBREW_PREFIX=$HOMEBREW_PREFIX" >> $GITHUB_ENV
+          echo "Homebrew prefix: $HOMEBREW_PREFIX"
 
       - name: Install PHP 8.4
         run: |
@@ -152,54 +163,55 @@ jobs:
       - name: Install LLVM 17
         run: |
           brew install llvm@17
-          echo "LIBCLANG_PATH=/opt/homebrew/opt/llvm@17/lib" >> $GITHUB_ENV
-          echo "LLVM_CONFIG_PATH=/opt/homebrew/opt/llvm@17/bin/llvm-config" >> $GITHUB_ENV
-          echo "/opt/homebrew/opt/llvm@17/bin" >> $GITHUB_PATH
+          echo "LIBCLANG_PATH=$HOMEBREW_PREFIX/opt/llvm@17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=$HOMEBREW_PREFIX/opt/llvm@17/bin/llvm-config" >> $GITHUB_ENV
+          echo "$HOMEBREW_PREFIX/opt/llvm@17/bin" >> $GITHUB_PATH
 
       - name: Verify LLVM installation
         run: |
           echo "LIBCLANG_PATH: $LIBCLANG_PATH"
           echo "LLVM_CONFIG_PATH: $LLVM_CONFIG_PATH"
-          ls -la /opt/homebrew/opt/llvm@17/lib || ls -la /usr/local/opt/llvm@17/lib || echo "LLVM lib path check"
+          ls -la $HOMEBREW_PREFIX/opt/llvm@17/lib || echo "LLVM lib path check failed"
           which llvm-config
 
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
 
       - name: Run cargo clippy (macOS)
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
           cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build extension (debug)
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
           cargo build --verbose
 
       - name: Build extension (release)
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
           cargo build --release --verbose
 
       - name: Run PHP tests
@@ -209,15 +221,16 @@ jobs:
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
           cargo install cargo-php
 
       - name: Generate stubs
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
           cargo php stubs --stdout > php/llm.php
+
 
       - name: Verify stubs generated
         run: |

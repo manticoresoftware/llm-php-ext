@@ -2,6 +2,14 @@ fn main() {
     // Configure the build for ext-php-rs
     // The build is handled by ext-php-rs automatically
 
+    // macOS-specific linker configuration
+    // PHP extensions on macOS need to use dynamic_lookup to resolve PHP symbols at runtime
+    #[cfg(target_os = "macos")]
+    {
+        println!("cargo:rustc-link-arg=-undefined");
+        println!("cargo:rustc-link-arg=dynamic_lookup");
+    }
+
     // For static builds on Linux with old glibc, provide compatibility wrappers
     // for __isoc23_* symbols that may be used by C++ dependencies
     #[cfg(target_os = "linux")]
