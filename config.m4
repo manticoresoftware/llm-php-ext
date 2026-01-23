@@ -258,6 +258,12 @@ if test "$PHP_LLM" != "no"; then
       AC_MSG_ERROR([Extension file not found: $LLM_TARGET_DIR/$EXT_SO])
     fi
   fi
+  
+  # Register extension with PHP build system
+  # Use stub file to satisfy PHP_NEW_EXTENSION requirement
+  # The actual extension code is in the Rust library
+  PHP_NEW_EXTENSION(llm, llm_stub.c, $ext_shared)
+  
   # Handle static vs shared linking
   if test "$BUILD_TYPE" = "static"; then
     # Static linking: Embed the Rust static library directly into PHP binary
@@ -282,8 +288,6 @@ if test "$PHP_LLM" != "no"; then
         ;;
     esac
     
-    # Register the extension as built-in (no C sources needed)
-    # ext-php-rs already provides get_module() symbol in the .a file
     PHP_ADD_BUILD_DIR(ext/llm, 1)
     
     PHP_SUBST(EXTRA_LIBS)
