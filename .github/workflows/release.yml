@@ -1,12 +1,9 @@
 name: Build and Release
 
 on:
-  pull_request:
-    branches: [ main, develop ]
-  # Uncomment the following lines to trigger on tag creation
-  # push:
-  #   tags:
-  #     - 'v*.*.*'
+  push:
+    tags:
+      - 'v*.*.*'
 
 env:
   CARGO_TERM_COLOR: always
