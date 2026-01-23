@@ -267,7 +267,7 @@ jobs:
             gcc \
             g++ \
             git \
-            curl
+            curl file
           ln -sf /usr/bin/php84 /usr/bin/php
           ln -sf /usr/bin/php-config84 /usr/bin/php-config
           ln -sf /usr/bin/phpize84 /usr/bin/phpize
