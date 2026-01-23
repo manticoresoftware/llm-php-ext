@@ -237,9 +237,11 @@ if test "$PHP_LLM" != "no"; then
     if ldd --version 2>&1 | grep -q musl; then
       AC_MSG_RESULT([yes - setting -crt-static flag for musl])
       MUSL_RUSTFLAGS="-C target-feature=-crt-static"
+      IS_MUSL=1
     else
       AC_MSG_RESULT([no])
       MUSL_RUSTFLAGS=""
+      IS_MUSL=0
     fi
     
     # Set bindgen-specific environment variables to use correct clang version
@@ -295,7 +297,12 @@ if test "$PHP_LLM" != "no"; then
         ;;
       Linux)
         # Linux: link against pthread, dl, etc.
-        EXTRA_LIBS="$EXTRA_LIBS -lpthread -ldl -lm -lgcc_s"
+        # Note: musl doesn't have libgcc_s (uses static libgcc), glibc needs it
+        if test $IS_MUSL -eq 1; then
+          EXTRA_LIBS="$EXTRA_LIBS -lpthread -ldl -lm"
+        else
+          EXTRA_LIBS="$EXTRA_LIBS -lpthread -ldl -lm -lgcc_s"
+        fi
         ;;
     esac
     
