@@ -304,8 +304,8 @@ jobs:
 
       - name: Verify extension built
         run: |
-          file target/debug/libllm.so
-          ls -lh target/debug/libllm.so
+          file target/debug/libllm.a
+          ls -lh target/debug/libllm.a
 
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
