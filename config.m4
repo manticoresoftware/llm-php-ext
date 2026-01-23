@@ -107,50 +107,34 @@ if test "$PHP_LLM" != "no"; then
   # Build the extension using cargo
   AC_MSG_CHECKING([building llm extension with cargo ($BUILD_TYPE mode)])
   
-  # Find the actual source directory containing Cargo.toml
-  # When building from PHP source tree, $abs_srcdir is the build directory
-  # We need to find where the actual source is located
+  # Determine source directory based on build context
+  # When building from PHP source tree with --enable-llm:
+  #   - Configure runs from build directory (e.g., /workdir/build/)
+  #   - Extension source is at: <php_src>/ext/llm/
+  #   - We need to find the actual extension source directory
   
-  # Try to find Cargo.toml in various locations
-  CARGO_MANIFEST=""
-  
-  # Check if Cargo.toml is in the current directory
-  if test -f "$abs_srcdir/Cargo.toml"; then
-    CARGO_MANIFEST="$abs_srcdir/Cargo.toml"
-    LLM_SRC_DIR="$abs_srcdir"
-  # Check if Cargo.toml is in the parent directory (common in PHP ext/ layout)
-  elif test -f "$abs_srcdir/../Cargo.toml"; then
-    CARGO_MANIFEST="$abs_srcdir/../Cargo.toml"
-    LLM_SRC_DIR="$abs_srcdir/.."
-  # Check if Cargo.toml is in ext/llm/ subdirectory
-  elif test -f "$abs_top_srcdir/ext/llm/Cargo.toml"; then
-    CARGO_MANIFEST="$abs_top_srcdir/ext/llm/Cargo.toml"
-    LLM_SRC_DIR="$abs_top_srcdir/ext/llm"
-  # Check if Cargo.toml is in the top-level source directory
-  elif test -f "$abs_top_srcdir/Cargo.toml"; then
-    CARGO_MANIFEST="$abs_top_srcdir/Cargo.toml"
-    LLM_SRC_DIR="$abs_top_srcdir"
-  fi
-  
-  # Verify Cargo.toml was found
-  if test -z "$CARGO_MANIFEST"; then
-    AC_MSG_ERROR([
-      Cargo.toml not found. Searched in:
-      - $abs_srcdir/Cargo.toml
-      - $abs_srcdir/../Cargo.toml
-      - $abs_top_srcdir/ext/llm/Cargo.toml
-      - $abs_top_srcdir/Cargo.toml
-      
-      Please ensure the extension source is properly placed in the PHP source tree.
-    ])
+  # Try to locate the extension source directory
+  # Method 1: Check if we're in a PHP source tree build (ext/llm exists relative to srcdir)
+  if test -f "$srcdir/ext/llm/Cargo.toml"; then
+    LLM_SRC_DIR="$srcdir/ext/llm"
+  # Method 2: Check one level up (for out-of-tree builds)
+  elif test -f "../ext/llm/Cargo.toml"; then
+    LLM_SRC_DIR="../ext/llm"
+  # Method 3: Use srcdir directly (for phpize builds)
+  else
+    LLM_SRC_DIR="$srcdir"
   fi
   
   # Convert to absolute path
   LLM_SRC_DIR=$(cd "$LLM_SRC_DIR" && pwd)
   CARGO_MANIFEST="$LLM_SRC_DIR/Cargo.toml"
   
+  # Verify Cargo.toml exists
+  if test ! -f "$CARGO_MANIFEST"; then
+    AC_MSG_ERROR([Cargo.toml not found at $CARGO_MANIFEST. Searched in: srcdir=$srcdir, srcdir/ext/llm, ../ext/llm])
+  fi
+  
   AC_MSG_NOTICE([Using Cargo.toml from: $CARGO_MANIFEST])
-  AC_MSG_NOTICE([Source directory: $LLM_SRC_DIR])
   
   # Build with appropriate environment and manifest path
   if test "$UNAME_S" = "Darwin"; then
