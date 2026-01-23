@@ -178,9 +178,6 @@ jobs:
           PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
           cargo build --verbose
 
-      - name: Install cargo-php
-        run: cargo install cargo-php
-
       - name: Build extension (release)
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
@@ -190,6 +187,9 @@ jobs:
 
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
+
+      - name: Install cargo-php
+        run: cargo install cargo-php
 
       - name: Generate stubs
         run: |
