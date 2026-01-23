@@ -1,0 +1,280 @@
+name: Build and Release
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  # Uncomment the following lines to trigger on tag creation
+  # push:
+  #   tags:
+  #     - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  PHP_VERSION: "8.4.17"
+
+jobs:
+  build-linux-amd64:
+    name: Build Linux AMD64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM 17
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          sudo apt-get install -y libclang-17-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
+
+      - name: Install PHP 8.4.17
+        run: |
+          sudo add-apt-repository ppa:ondrej/php -y
+          sudo apt-get update
+          sudo apt-get install -y php8.4 php8.4-dev php8.4-cli php8.4-json
+          php -v
+
+      - name: Build extension (release)
+        run: cargo build --release --verbose
+
+      - name: Test extension
+        run: php -d 'extension=target/release/libllm.so' tests/run_tests.php
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cp target/release/libllm.so "llm-${VERSION}-php${PHP_VERSION}-linux-amd64.so"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-linux-amd64
+          path: llm-*-linux-amd64.so
+
+  build-linux-arm64:
+    name: Build Linux ARM64
+    runs-on: ubuntu-24.04-arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM 17
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          sudo apt-get install -y libclang-17-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
+
+      - name: Install PHP 8.4.17
+        run: |
+          sudo add-apt-repository ppa:ondrej/php -y
+          sudo apt-get update
+          sudo apt-get install -y php8.4 php8.4-dev php8.4-cli php8.4-json
+          php -v
+
+      - name: Build extension (release)
+        run: cargo build --release --verbose
+
+      - name: Test extension
+        run: php -d 'extension=target/release/libllm.so' tests/run_tests.php
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cp target/release/libllm.so "llm-${VERSION}-php${PHP_VERSION}-linux-arm64.so"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-linux-arm64
+          path: llm-*-linux-arm64.so
+
+  build-macos-amd64:
+    name: Build macOS AMD64
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Install LLVM 17
+        run: |
+          brew install llvm@17
+          echo "LIBCLANG_PATH=/usr/local/opt/llvm@17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/usr/local/opt/llvm@17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/usr/local/opt/llvm@17/bin" >> $GITHUB_PATH
+
+      - name: Install PHP 8.4.17
+        run: |
+          brew tap shivammathur/php
+          brew install shivammathur/php/php@8.4
+          brew link --overwrite --force shivammathur/php/php@8.4
+          php -v
+
+      - name: Build extension (release)
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          cargo build --release --target x86_64-apple-darwin --verbose
+
+      - name: Test extension
+        run: php -d 'extension=target/x86_64-apple-darwin/release/libllm.dylib' tests/run_tests.php
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cp target/x86_64-apple-darwin/release/libllm.dylib "llm-${VERSION}-php${PHP_VERSION}-macos-amd64.dylib"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-macos-amd64
+          path: llm-*-macos-amd64.dylib
+
+  build-macos-arm64:
+    name: Build macOS ARM64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM 17
+        run: |
+          brew install llvm@17
+          echo "LIBCLANG_PATH=/opt/homebrew/opt/llvm@17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/opt/homebrew/opt/llvm@17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/opt/homebrew/opt/llvm@17/bin" >> $GITHUB_PATH
+
+      - name: Install PHP 8.4.17
+        run: |
+          brew tap shivammathur/php
+          brew install shivammathur/php/php@8.4
+          brew link --overwrite --force shivammathur/php/php@8.4
+          php -v
+
+      - name: Build extension (release)
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          cargo build --release --verbose
+
+      - name: Test extension
+        run: php -d 'extension=target/release/libllm.dylib' tests/run_tests.php
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cp target/release/libllm.dylib "llm-${VERSION}-php${PHP_VERSION}-macos-arm64.dylib"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-macos-arm64
+          path: llm-*-macos-arm64.dylib
+
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    needs: [build-linux-amd64, build-linux-arm64, build-macos-amd64, build-macos-arm64]
+    if: always() && needs.build-linux-amd64.result == 'success' && needs.build-linux-arm64.result == 'success' && needs.build-macos-amd64.result == 'success' && needs.build-macos-arm64.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p release
+          find ./artifacts -name "*.so" -exec cp {} release/ \;
+          find ./artifacts -name "*.dylib" -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Generate release notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cat > release_notes.md << 'EOF'
+# LLM PHP Extension v$VERSION
+
+## Artifacts
+- Linux AMD64: `llm-$VERSION-php8.4.17-linux-amd64.so`
+- Linux ARM64: `llm-$VERSION-php8.4.17-linux-arm64.so`
+- macOS AMD64 (Intel): `llm-$VERSION-php8.4.17-macos-amd64.dylib`
+- macOS ARM64 (Apple Silicon): `llm-$VERSION-php8.4.17-macos-arm64.dylib`
+
+## Installation
+Download the appropriate file for your platform and PHP version, then load it as an extension.
+
+## Checksums
+```
+$(cd release && sha256sum * || shasum -a 256 *)
+```
+EOF
+          sed -i "s/\$VERSION/${VERSION}/g" release_notes.md || sed -i '' "s/\$VERSION/${VERSION}/g" release_notes.md
+          cat release_notes.md
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          name: "v${{ steps.version.outputs.version }}"
+          tag_name: "v${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
