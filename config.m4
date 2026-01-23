@@ -107,17 +107,50 @@ if test "$PHP_LLM" != "no"; then
   # Build the extension using cargo
   AC_MSG_CHECKING([building llm extension with cargo ($BUILD_TYPE mode)])
   
-  # Get the absolute path to the extension source directory
-  # This is important when building from PHP source tree
-  LLM_SRC_DIR="$abs_srcdir"
-  CARGO_MANIFEST="$LLM_SRC_DIR/Cargo.toml"
+  # Find the actual source directory containing Cargo.toml
+  # When building from PHP source tree, $abs_srcdir is the build directory
+  # We need to find where the actual source is located
   
-  # Verify Cargo.toml exists
-  if test ! -f "$CARGO_MANIFEST"; then
-    AC_MSG_ERROR([Cargo.toml not found at $CARGO_MANIFEST])
+  # Try to find Cargo.toml in various locations
+  CARGO_MANIFEST=""
+  
+  # Check if Cargo.toml is in the current directory
+  if test -f "$abs_srcdir/Cargo.toml"; then
+    CARGO_MANIFEST="$abs_srcdir/Cargo.toml"
+    LLM_SRC_DIR="$abs_srcdir"
+  # Check if Cargo.toml is in the parent directory (common in PHP ext/ layout)
+  elif test -f "$abs_srcdir/../Cargo.toml"; then
+    CARGO_MANIFEST="$abs_srcdir/../Cargo.toml"
+    LLM_SRC_DIR="$abs_srcdir/.."
+  # Check if Cargo.toml is in ext/llm/ subdirectory
+  elif test -f "$abs_top_srcdir/ext/llm/Cargo.toml"; then
+    CARGO_MANIFEST="$abs_top_srcdir/ext/llm/Cargo.toml"
+    LLM_SRC_DIR="$abs_top_srcdir/ext/llm"
+  # Check if Cargo.toml is in the top-level source directory
+  elif test -f "$abs_top_srcdir/Cargo.toml"; then
+    CARGO_MANIFEST="$abs_top_srcdir/Cargo.toml"
+    LLM_SRC_DIR="$abs_top_srcdir"
   fi
   
+  # Verify Cargo.toml was found
+  if test -z "$CARGO_MANIFEST"; then
+    AC_MSG_ERROR([
+      Cargo.toml not found. Searched in:
+      - $abs_srcdir/Cargo.toml
+      - $abs_srcdir/../Cargo.toml
+      - $abs_top_srcdir/ext/llm/Cargo.toml
+      - $abs_top_srcdir/Cargo.toml
+      
+      Please ensure the extension source is properly placed in the PHP source tree.
+    ])
+  fi
+  
+  # Convert to absolute path
+  LLM_SRC_DIR=$(cd "$LLM_SRC_DIR" && pwd)
+  CARGO_MANIFEST="$LLM_SRC_DIR/Cargo.toml"
+  
   AC_MSG_NOTICE([Using Cargo.toml from: $CARGO_MANIFEST])
+  AC_MSG_NOTICE([Source directory: $LLM_SRC_DIR])
   
   # Build with appropriate environment and manifest path
   if test "$UNAME_S" = "Darwin"; then
