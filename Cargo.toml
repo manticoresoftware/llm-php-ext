@@ -21,6 +21,7 @@ anyhow = "1.0"
 
 [build-dependencies]
 ext-php-rs = "0.15.3"
+cc = "1.0"
 
 [profile.release]
 opt-level = 3

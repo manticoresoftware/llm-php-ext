@@ -1,2 +1,18 @@
 # Cross-platform cargo configuration
 # No hardcoded target - let cargo detect the platform automatically
+
+# GLIBC compatibility for static linking on Linux
+# When building on systems with glibc 2.38+, the C++ dependencies (protobuf, onnxruntime)
+# will use new __isoc23_* symbols. We need to provide wrappers for older glibc compatibility.
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    # These link args will be used if we provide wrapper functions
+    # See build.rs for the actual wrapper implementation
+]
+
+[env]
+# Disable fortify source to avoid additional glibc symbol dependencies
+CFLAGS = "-D_FORTIFY_SOURCE=0"
+CXXFLAGS = "-D_FORTIFY_SOURCE=0"
+
