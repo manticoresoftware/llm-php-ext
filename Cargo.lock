@@ -2027,6 +2027,7 @@ name = "llm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cc",
  "ext-php-rs",
  "octolib",
  "serde",

@@ -207,6 +207,22 @@ if test "$PHP_LLM" != "no"; then
   
   AC_MSG_NOTICE([Using Cargo.toml from: $CARGO_MANIFEST])
   
+  # For static builds on Linux, inform about glibc compatibility
+  if test "$BUILD_TYPE" = "static" && test "$UNAME_S" != "Darwin"; then
+    AC_MSG_CHECKING([glibc version])
+    GLIBC_VERSION=$(ldd --version 2>/dev/null | head -n1 | awk '{print $NF}')
+    if test -n "$GLIBC_VERSION"; then
+      AC_MSG_RESULT([$GLIBC_VERSION])
+      AC_MSG_NOTICE([
+        The extension includes glibc compatibility wrappers in build.rs
+        that provide __isoc23_* symbols for older glibc versions.
+        Static builds should work on glibc 2.17+ systems.
+      ])
+    else
+      AC_MSG_RESULT([unknown])
+    fi
+  fi
+  
   # Build with appropriate environment and manifest path
   if test "$UNAME_S" = "Darwin"; then
     # macOS build with LLVM
