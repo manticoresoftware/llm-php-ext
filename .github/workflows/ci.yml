@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  MACOSX_DEPLOYMENT_TARGET: 13.4
 
 jobs:
   # Rust code quality checks
@@ -63,10 +64,22 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install PHP
+      - name: Install LLVM 17
         run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          sudo apt-get install -y libclang-17-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
+
+      - name: Install PHP 8.4
+        run: |
+          sudo add-apt-repository ppa:ondrej/php -y
           sudo apt-get update
-          sudo apt-get install -y php php-dev php-cli php-json
+          sudo apt-get install -y php8.4 php8.4-dev php8.4-cli
+          php -v
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -96,7 +109,11 @@ jobs:
         run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
 
       - name: Install cargo-php
-        run: cargo install cargo-php
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/usr/lib/llvm-17/bin:$PATH" \
+          cargo install cargo-php
 
       - name: Generate stubs
         run: cargo php stubs --stdout > php/llm.php
@@ -189,7 +206,11 @@ jobs:
         run: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
 
       - name: Install cargo-php
-        run: cargo install cargo-php
+        run: |
+          LIBCLANG_PATH=$LIBCLANG_PATH \
+          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
+          PATH="/opt/homebrew/opt/llvm@17/bin:$PATH" \
+          cargo install cargo-php
 
       - name: Generate stubs
         run: |
