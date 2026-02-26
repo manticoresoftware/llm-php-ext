@@ -60,7 +60,7 @@ impl LLM {
             &model,
             self.temperature,
             self.top_p,
-            50,
+            50, // top_k
             self.max_tokens,
         );
 

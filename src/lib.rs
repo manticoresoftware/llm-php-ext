@@ -25,6 +25,8 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
         .class::<message::Message>()
         .class::<message::MessageCollection>()
         .class::<error::LLMException>()
+        .class::<error::LLMConnectionException>()
         .class::<error::LLMValidationException>()
         .class::<error::LLMStructuredOutputException>()
+        .class::<error::LLMToolCallException>()
 }

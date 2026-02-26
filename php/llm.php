@@ -363,15 +363,43 @@ namespace {
         public function __construct(?array $messages = null) {}
     }
 
-    class LLMException {
-        public function __construct(string $_message, int $_code) {}
+    class LLMException extends \Exception {
+        protected $message;
+
+        protected $code;
+
+        public function __construct(?string $message = null, ?int $code = null) {}
     }
 
-    class LLMValidationException {
-        public function __construct(string $_message, int $_code) {}
+    class LLMConnectionException extends \Exception {
+        protected $code;
+
+        protected $message;
+
+        public function __construct(?string $message = null, ?int $code = null) {}
     }
 
-    class LLMStructuredOutputException {
-        public function __construct(string $_message, int $_code) {}
+    class LLMValidationException extends \Exception {
+        protected $message;
+
+        protected $code;
+
+        public function __construct(?string $message = null, ?int $code = null) {}
+    }
+
+    class LLMStructuredOutputException extends \Exception {
+        protected $code;
+
+        protected $message;
+
+        public function __construct(?string $message = null, ?int $code = null) {}
+    }
+
+    class LLMToolCallException extends \Exception {
+        protected $code;
+
+        protected $message;
+
+        public function __construct(?string $message = null, ?int $code = null) {}
     }
 }
