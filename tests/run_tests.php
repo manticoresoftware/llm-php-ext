@@ -118,9 +118,17 @@ class TestAssert extends Exception {
 require_once __DIR__ . '/LLMTest.php';
 require_once __DIR__ . '/MessageTest.php';
 require_once __DIR__ . '/ToolTest.php';
+require_once __DIR__ . '/ExceptionTest.php';
 
 // Run tests
 $runner = new TestRunner();
+
+// Exception tests
+$runner->addTest('Exception classes exist', [ExceptionTest::class, 'testAllExceptionClassesExist']);
+$runner->addTest('Exception classes extend \\Exception', [ExceptionTest::class, 'testAllExceptionClassesExtendException']);
+$runner->addTest('Exception classes implement Throwable', [ExceptionTest::class, 'testAllExceptionClassesImplementThrowable']);
+$runner->addTest('Exception classes can be thrown and caught', [ExceptionTest::class, 'testExceptionClassesCanBeThrown']);
+$runner->addTest('Exception classes caught as Throwable', [ExceptionTest::class, 'testExceptionClassesCaughtAsThrowable']);
 
 // LLM tests
 $runner->addTest('LLM instantiation', function() {

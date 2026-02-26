@@ -1,6 +1,5 @@
 use ext_php_rs::exception::PhpException;
-use ext_php_rs::php_class;
-use ext_php_rs::php_impl;
+use ext_php_rs::prelude::*;
 use octolib::errors::{ProviderError, StructuredOutputError, ToolCallError};
 
 /// Convert octolib errors to PHP exceptions
@@ -81,64 +80,38 @@ impl IntoPhpException for anyhow::Error {
     }
 }
 
-// Exception classes for PHP
-#[php_class]
-#[php(name = "LLMException")]
-pub struct LLMException;
+// Exception classes for PHP — all extend \Exception so they implement Throwable
+// and can be caught with catch (\Throwable $e) in userland.
+//
+// We store message/code as #[php(prop)] fields so that Exception::getMessage()
+// and Exception::getCode() work correctly. The __construct populates them;
+// ext-php-rs requires a #[php_impl] block to allow PHP-side instantiation.
 
-#[php_impl]
-impl LLMException {
-    #[php(constructor)]
-    pub fn __construct(_message: String, _code: i64) -> Self {
-        // This is just a marker, actual exception is thrown by ext-php-rs
-        Self
-    }
+macro_rules! php_exception_class {
+    ($rust_name:ident, $php_name:literal) => {
+        #[php_class]
+        #[php(name = $php_name, extends(ce = ext_php_rs::zend::ce::exception, stub = "\\Exception"))]
+        pub struct $rust_name {
+            #[php(prop, flags = ext_php_rs::flags::PropertyFlags::Protected)]
+            message: String,
+            #[php(prop, flags = ext_php_rs::flags::PropertyFlags::Protected)]
+            code: i64,
+        }
+
+        #[php_impl]
+        impl $rust_name {
+            pub fn __construct(message: Option<String>, code: Option<i64>) -> Self {
+                Self {
+                    message: message.unwrap_or_default(),
+                    code: code.unwrap_or(0),
+                }
+            }
+        }
+    };
 }
 
-#[php_class]
-#[php(name = "LLMConnectionException")]
-pub struct LLMConnectionException;
-
-#[php_impl]
-impl LLMConnectionException {
-    #[php(constructor)]
-    pub fn __construct(_message: String, _code: i64) -> Self {
-        Self
-    }
-}
-
-#[php_class]
-#[php(name = "LLMValidationException")]
-pub struct LLMValidationException;
-
-#[php_impl]
-impl LLMValidationException {
-    #[php(constructor)]
-    pub fn __construct(_message: String, _code: i64) -> Self {
-        Self
-    }
-}
-
-#[php_class]
-#[php(name = "LLMStructuredOutputException")]
-pub struct LLMStructuredOutputException;
-
-#[php_impl]
-impl LLMStructuredOutputException {
-    #[php(constructor)]
-    pub fn __construct(_message: String, _code: i64) -> Self {
-        Self
-    }
-}
-
-#[php_class]
-#[php(name = "LLMToolCallException")]
-pub struct LLMToolCallException;
-
-#[php_impl]
-impl LLMToolCallException {
-    #[php(constructor)]
-    pub fn __construct(_message: String, _code: i64) -> Self {
-        Self
-    }
-}
+php_exception_class!(LLMException, "LLMException");
+php_exception_class!(LLMConnectionException, "LLMConnectionException");
+php_exception_class!(LLMValidationException, "LLMValidationException");
+php_exception_class!(LLMStructuredOutputException, "LLMStructuredOutputException");
+php_exception_class!(LLMToolCallException, "LLMToolCallException");
