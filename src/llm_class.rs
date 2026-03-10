@@ -69,11 +69,12 @@ impl LLM {
             .map_err(|e| e.into_php_exception())?;
 
         let usage = response.exchange.usage.unwrap_or(TokenUsage {
-            prompt_tokens: 0,
+            input_tokens: 0,
             output_tokens: 0,
             reasoning_tokens: 0,
             total_tokens: 0,
-            cached_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             cost: None,
             request_time_ms: None,
         });
@@ -277,7 +278,7 @@ pub struct Usage {
 impl Usage {
     pub(crate) fn from_octo(usage: TokenUsage) -> Self {
         Self {
-            prompt_tokens: usage.prompt_tokens as i64,
+            prompt_tokens: usage.input_tokens as i64,
             output_tokens: usage.output_tokens as i64,
             total_tokens: usage.total_tokens as i64,
         }
