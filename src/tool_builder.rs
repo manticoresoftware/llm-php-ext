@@ -86,8 +86,7 @@ impl Tool {
             let json_value = zval_to_json_value(parameters);
             serde_json::to_string(&json_value).map_err(|e| {
                 PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                    "Invalid JSON schema: {}",
-                    e
+                    "Invalid JSON schema: {e}"
                 ))
             })?
         } else {
@@ -101,8 +100,7 @@ impl Tool {
         // Validate it's valid JSON
         serde_json::from_str::<Value>(&params_json).map_err(|e| {
             PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                "Invalid JSON schema: {}",
-                e
+                "Invalid JSON schema: {e}"
             ))
         })?;
 
@@ -148,8 +146,7 @@ impl Tool {
             let json_value = zval_to_json_value(parameters);
             serde_json::to_string(&json_value).map_err(|e| {
                 PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                    "Invalid JSON schema: {}",
-                    e
+                    "Invalid JSON schema: {e}"
                 ))
             })?
         } else {
@@ -195,8 +192,7 @@ impl Tool {
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }
@@ -207,8 +203,7 @@ impl Tool {
     fn to_octo(&self) -> Result<FunctionDefinition, PhpException> {
         let params_value: Value = serde_json::from_str(&self.parameters).map_err(|e| {
             PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                "Invalid parameters JSON: {}",
-                e
+                "Invalid parameters JSON: {e}"
             ))
         })?;
 
@@ -245,7 +240,7 @@ impl ToolCall {
     pub(crate) fn new(id: String, name: String, arguments: Value) -> PhpResult<Self> {
         // Store arguments as JSON string
         let arguments_json = serde_json::to_string(&arguments)
-            .map_err(|e| PhpException::default(format!("Failed to serialize arguments: {}", e)))?;
+            .map_err(|e| PhpException::default(format!("Failed to serialize arguments: {e}")))?;
 
         Ok(Self {
             id,
@@ -304,8 +299,7 @@ impl ToolCall {
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }
@@ -420,8 +414,7 @@ impl ToolResponse {
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }

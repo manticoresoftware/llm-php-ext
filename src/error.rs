@@ -19,24 +19,20 @@ impl IntoPhpException for &ProviderError {
                 status,
                 message,
             } => PhpException::from_class::<crate::error::LLMConnectionException>(format!(
-                "API Error [{}] ({}): {}",
-                provider, status, message
+                "API Error [{provider}] ({status}): {message}"
             )),
             ProviderError::ModelNotSupported { model, provider } => {
                 PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                    "Model '{}' not supported by provider '{}'",
-                    model, provider
+                    "Model '{model}' not supported by provider '{provider}'"
                 ))
             }
             ProviderError::TimeoutError { provider } => {
                 PhpException::from_class::<crate::error::LLMConnectionException>(format!(
-                    "Request timeout for provider: {}",
-                    provider
+                    "Request timeout for provider: {provider}"
                 ))
             }
             _ => PhpException::from_class::<crate::error::LLMException>(format!(
-                "Provider error: {:?}",
-                self
+                "Provider error: {self:?}"
             )),
         }
     }
@@ -46,8 +42,7 @@ impl IntoPhpException for &StructuredOutputError {
     fn into_php_exception(self) -> PhpException {
         // Use a catch-all pattern since the enum structure may vary
         PhpException::from_class::<crate::error::LLMStructuredOutputException>(format!(
-            "Structured output error: {:?}",
-            self
+            "Structured output error: {self:?}"
         ))
     }
 }
@@ -56,8 +51,7 @@ impl IntoPhpException for &ToolCallError {
     fn into_php_exception(self) -> PhpException {
         // Use a catch-all pattern since the enum structure may vary
         PhpException::from_class::<crate::error::LLMToolCallException>(format!(
-            "Tool call error: {:?}",
-            self
+            "Tool call error: {self:?}"
         ))
     }
 }
