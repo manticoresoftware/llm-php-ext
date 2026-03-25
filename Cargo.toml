@@ -13,7 +13,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 ext-php-rs = "0.15.3"
-octolib = { version = "0.10.2", default-features = false }
+octolib = { version = "0.12.2", default-features = false }
 tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

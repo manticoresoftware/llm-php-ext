@@ -9,6 +9,21 @@ use crate::convert::php_to_messages;
 use crate::error::IntoPhpException;
 use crate::tool_builder::Tool;
 
+/// Get the environment variable prefix for a provider from a model string.
+/// Maps "provider:model" → "PROVIDER" with special cases for aliases.
+pub(crate) fn get_env_prefix(model: &str) -> String {
+    let provider = model
+        .find(':')
+        .map(|pos| model[..pos].trim())
+        .unwrap_or(model)
+        .to_lowercase();
+
+    match provider.as_str() {
+        "kimi" => "MOONSHOT".to_string(),
+        other => other.to_uppercase(),
+    }
+}
+
 /// Main LLM class for interacting with language models
 #[php_class]
 #[allow(clippy::upper_case_acronyms)]
@@ -26,7 +41,22 @@ pub struct LLM {
 impl LLM {
     /// Create a new LLM instance
     #[php(constructor)]
-    pub fn __construct(model: String, _options: Option<&PhpArray>) -> PhpResult<Self> {
+    pub fn __construct(model: String, options: Option<&PhpArray>) -> PhpResult<Self> {
+        // Set provider env vars from options before anything touches octolib
+        if let Some(opts) = options {
+            let prefix = get_env_prefix(&model);
+            if let Some(api_key) = opts.get("api_key").and_then(|v| v.string()) {
+                unsafe {
+                    std::env::set_var(format!("{}_API_KEY", prefix), &api_key);
+                }
+            }
+            if let Some(base_url) = opts.get("base_url").and_then(|v| v.string()) {
+                unsafe {
+                    std::env::set_var(format!("{}_API_URL", prefix), &base_url);
+                }
+            }
+        }
+
         let runtime = Arc::new(Runtime::new().map_err(|e| {
             PhpException::from_class::<crate::error::LLMException>(format!(
                 "Failed to create runtime: {}",
@@ -325,3 +355,43 @@ impl Usage {
 // Forward declarations for builders
 pub use crate::structured_builder::StructuredBuilder;
 pub use crate::tool_builder::ToolBuilder;
+
+#[cfg(test)]
+mod tests {
+    use super::get_env_prefix;
+
+    #[test]
+    fn test_get_env_prefix_standard_providers() {
+        assert_eq!(get_env_prefix("openai:gpt-4o"), "OPENAI");
+        assert_eq!(get_env_prefix("anthropic:claude-3.5-sonnet"), "ANTHROPIC");
+        assert_eq!(get_env_prefix("deepseek:deepseek-chat"), "DEEPSEEK");
+        assert_eq!(get_env_prefix("openrouter:meta/llama-3"), "OPENROUTER");
+        assert_eq!(get_env_prefix("cerebras:llama-3.3-70b"), "CEREBRAS");
+        assert_eq!(get_env_prefix("ollama:llama3.2"), "OLLAMA");
+        assert_eq!(get_env_prefix("local:my-model"), "LOCAL");
+        assert_eq!(get_env_prefix("minimax:MiniMax-M2.1"), "MINIMAX");
+        assert_eq!(get_env_prefix("moonshot:kimi-k2"), "MOONSHOT");
+        assert_eq!(get_env_prefix("zai:model"), "ZAI");
+        assert_eq!(get_env_prefix("octohub:model"), "OCTOHUB");
+        assert_eq!(get_env_prefix("google:gemini-pro"), "GOOGLE");
+        assert_eq!(get_env_prefix("amazon:model-id"), "AMAZON");
+        assert_eq!(get_env_prefix("cloudflare:@cf/model"), "CLOUDFLARE");
+    }
+
+    #[test]
+    fn test_get_env_prefix_kimi_alias() {
+        assert_eq!(get_env_prefix("kimi:kimi-k2"), "MOONSHOT");
+    }
+
+    #[test]
+    fn test_get_env_prefix_case_insensitive() {
+        assert_eq!(get_env_prefix("OpenAI:gpt-4o"), "OPENAI");
+        assert_eq!(get_env_prefix("ANTHROPIC:claude"), "ANTHROPIC");
+        assert_eq!(get_env_prefix("Kimi:model"), "MOONSHOT");
+    }
+
+    #[test]
+    fn test_get_env_prefix_no_colon_fallback() {
+        assert_eq!(get_env_prefix("openai"), "OPENAI");
+    }
+}
