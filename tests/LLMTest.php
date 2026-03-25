@@ -4,16 +4,40 @@
  */
 
 class LLMTest {
-    public static function testInstantiation(): void {
-        $llm = new LLM('openai:gpt-4o');
+    public static function testInstantiationWithApiKey(): void {
+        $llm = new LLM('openai:gpt-4o', [
+            'api_key' => 'sk-test-key-123',
+        ]);
+        TestAssert::assertInstanceOf('LLM', $llm);
+        // Verify env var was set
+        TestAssert::assertEquals('sk-test-key-123', getenv('OPENAI_API_KEY'));
+    }
+
+    public static function testInstantiationWithBaseUrl(): void {
+        $llm = new LLM('openai:gpt-4o', [
+            'base_url' => 'https://custom.api.example.com/v1',
+        ]);
+        TestAssert::assertInstanceOf('LLM', $llm);
+        TestAssert::assertEquals('https://custom.api.example.com/v1', getenv('OPENAI_API_URL'));
+    }
+
+    public static function testInstantiationWithAllOptions(): void {
+        $llm = new LLM('anthropic:claude-3.5-sonnet', [
+            'api_key' => 'sk-ant-test-456',
+            'base_url' => 'https://custom.anthropic.example.com',
+        ]);
+        TestAssert::assertInstanceOf('LLM', $llm);
+        TestAssert::assertEquals('sk-ant-test-456', getenv('ANTHROPIC_API_KEY'));
+        TestAssert::assertEquals('https://custom.anthropic.example.com', getenv('ANTHROPIC_API_URL'));
+    }
+
+    public static function testInstantiationWithEmptyOptions(): void {
+        $llm = new LLM('openai:gpt-4o', []);
         TestAssert::assertInstanceOf('LLM', $llm);
     }
-    
-    public static function testInstantiationWithOptions(): void {
-        $llm = new LLM('openai:gpt-4o', [
-            'api_key' => 'test-key',
-            'timeout' => 60
-        ]);
+
+    public static function testInstantiationWithoutOptions(): void {
+        $llm = new LLM('openai:gpt-4o');
         TestAssert::assertInstanceOf('LLM', $llm);
     }
     
