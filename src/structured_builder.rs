@@ -69,8 +69,7 @@ impl StructuredBuilder {
         let structured_request = if let Some(schema) = &this.schema {
             let schema_value: serde_json::Value = serde_json::from_str(schema).map_err(|e| {
                 PhpException::from_class::<crate::error::LLMStructuredOutputException>(format!(
-                    "Invalid JSON schema: {}",
-                    e
+                    "Invalid JSON schema: {e}"
                 ))
             })?;
             StructuredOutputRequest::json_schema(schema_value)
@@ -277,8 +276,7 @@ impl StructuredResponse {
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }

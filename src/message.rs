@@ -81,7 +81,7 @@ impl Message {
                 })
                 .collect();
             Some(serde_json::to_string(&calls_array).map_err(|e| {
-                PhpException::default(format!("Failed to serialize tool calls: {}", e))
+                PhpException::default(format!("Failed to serialize tool calls: {e}"))
             })?)
         } else {
             None
@@ -184,8 +184,7 @@ impl Message {
         })) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }
@@ -194,26 +193,23 @@ impl Message {
 // Internal methods - not exposed to PHP
 impl Message {
     pub(crate) fn to_octo(&self) -> Result<OctoMessage, PhpException> {
+        let map_build_err = |e: octolib::errors::MessageError| {
+            PhpException::from_class::<crate::error::LLMValidationException>(format!(
+                "Failed to build message: {e}"
+            ))
+        };
+
         match self.role.as_str() {
-            "user" => Ok(MessageBuilder::user(&self.content).build().map_err(|e| {
-                PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                    "Failed to build message: {}",
-                    e
-                ))
-            })?),
+            "user" => Ok(MessageBuilder::user(&self.content)
+                .build()
+                .map_err(map_build_err)?),
             "assistant" => {
                 let mut builder = MessageBuilder::assistant(&self.content);
                 if let Some(ref msg_id) = self.id {
                     builder = builder.id(msg_id);
                 }
-                let mut msg = builder.build().map_err(|e| {
-                    PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                        "Failed to build message: {}",
-                        e
-                    ))
-                })?;
+                let mut msg = builder.build().map_err(map_build_err)?;
 
-                // Set tool_calls directly on the Message struct if present
                 if let Some(ref calls_json) = self.tool_calls {
                     if let Ok(calls_value) = serde_json::from_str::<serde_json::Value>(calls_json) {
                         msg.tool_calls = Some(calls_value);
@@ -221,21 +217,14 @@ impl Message {
                 }
                 Ok(msg)
             }
-            "system" => Ok(MessageBuilder::system(&self.content).build().map_err(|e| {
-                PhpException::from_class::<crate::error::LLMValidationException>(format!(
-                    "Failed to build message: {}",
-                    e
-                ))
-            })?),
+            "system" => Ok(MessageBuilder::system(&self.content)
+                .build()
+                .map_err(map_build_err)?),
             "tool" => {
                 if let Some(ref id) = self.tool_call_id {
                     Ok(MessageBuilder::tool(&self.content, id, &String::new())
                         .build()
-                        .map_err(|e| {
-                            PhpException::from_class::<crate::error::LLMValidationException>(
-                                format!("Failed to build message: {}", e),
-                            )
-                        })?)
+                        .map_err(map_build_err)?)
                 } else {
                     Err(PhpException::from_class::<
                         crate::error::LLMValidationException,
@@ -384,8 +373,7 @@ impl MessageCollection {
         match serde_json::to_string(&messages) {
             Ok(json) => Ok(json),
             Err(e) => Err(PhpException::default(format!(
-                "Failed to serialize to JSON: {}",
-                e
+                "Failed to serialize to JSON: {e}"
             ))),
         }
     }
