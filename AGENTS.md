@@ -206,7 +206,7 @@ Things a reader might expect to work but that are not implemented:
 | `StructuredBuilder::withFormat()` is a no-op | `format` is stored and never read |
 | `setFrequencyPenalty()` / `setPresencePenalty()` never reach the provider | not passed to `ChatCompletionParams` |
 | No `timeout` option | octolib's timeout/retry params are not exposed |
-| `StructuredResponse::toArray()` / `toJson()` flatten nested data | only top-level scalars survive |
+| `StructuredResponse::toArray()` / `toJson()` flatten nested data | only top-level scalars survive; nested arrays are silently dropped |
 | No streaming, thinking blocks, caching, cost, vision, or `tool_choice` | octolib supports these; the extension does not surface them |
 
 ---
@@ -221,3 +221,4 @@ Things a reader might expect to work but that are not implemented:
 | Stubs out of date | forgot to regenerate after an API change | `make stubs` |
 | `base_url` appears to be ignored | hyphenated or non-standard provider prefix | set the real env var with `putenv()` |
 | A 400 from an OpenAI-compatible server on `openai:` | `openai:` speaks the Responses API | use the `local:` prefix instead |
+| `Only variables should be passed by reference` | `Tool::__construct($parameters)` and `MessageCollection::add($message)` take `&mut` args | assign to a variable before passing |

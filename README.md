@@ -112,10 +112,6 @@ putenv('OPENAI_API_URL=https://my-gateway.example.com/v1/responses');
 $llm = new LLM('openai:gpt-5.4');
 ```
 
-> `base_url` is a misleading name. It is written verbatim into `{PROVIDER}_API_URL`,
-> and octolib POSTs to exactly that URL. `https://host/v1` will not work —
-> you must give the complete path, e.g. `https://host/v1/chat/completions`.
-
 ### Where exactly does the URL go?
 
 `base_url` is a misleading name. It is not a base — it is the **complete URL
@@ -125,7 +121,7 @@ octolib POSTs to**, path and all. Nothing is appended to it.
 // ✅ correct — full path to the endpoint
 'base_url' => 'https://inference.internal/v1/chat/completions'
 
-// ❌ wrong — no path; the request goes to the bare host and 404s
+// ❌ wrong — no path; the request is POSTed to / and the server rejects it
 'base_url' => 'https://inference.internal'
 
 // ❌ wrong — the version prefix alone; octolib does not append /chat/completions
@@ -361,11 +357,17 @@ $call->getName(): string
 $call->getArguments(): array          // decoded
 ```
 
-The `$parameters` argument is taken by reference, so pass a variable:
+`Tool::__construct()` takes `$parameters` by reference, and
+`MessageCollection::add()` takes its `Message` by reference. Passing a literal or
+a function result to either raises `Only variables should be passed by reference`,
+so assign first:
 
 ```php
 $params = ['type' => 'object', 'properties' => [...]];
 $tool = new Tool('get_weather', 'Get the weather', $params);
+
+$msg = Message::fromResponse($response);
+$messages->add($msg);
 ```
 
 ## Structured output
@@ -425,7 +427,9 @@ $response = $builder->complete($messages);
 
 if ($response->hasToolCalls()) {
     // Keep the assistant turn that requested the calls.
-    $messages->add(Message::fromResponse($response));
+    // Assign first — add() takes the Message by reference.
+    $assistantTurn = Message::fromResponse($response);
+    $messages->add($assistantTurn);
 
     foreach ($response->getToolCalls() as $call) {
         $result = getWeather($call->getArguments()['location']);
@@ -529,7 +533,7 @@ See [`examples/`](examples/) — `quick_demo.php` (run with `make example`),
 ## Contributing
 
 Fork, branch, change, add tests, run `make ci`, open a PR.
-See [INSTRUCTIONS.md](INSTRUCTIONS.md) for the developer onboarding notes.
+See [AGENTS.md](AGENTS.md) for the developer onboarding notes.
 
 ## License
 
