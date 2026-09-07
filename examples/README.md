@@ -134,7 +134,8 @@ requested it:
 $response = $toolBuilder->complete($messages);
 
 if ($response->hasToolCalls()) {
-    $messages->add(Message::fromResponse($response));   // preserves tool_calls
+    $assistantTurn = Message::fromResponse($response);  // preserves tool_calls
+    $messages->add($assistantTurn);                     // add() takes it by reference
 
     foreach ($response->getToolCalls() as $call) {
         $result = executeFunction($call->getName(), $call->getArguments());
@@ -173,8 +174,10 @@ other multimodal input, and `tool_choice` are not exposed by this extension.
 **`OPENAI_API_KEY not set`** — export the key, or pass `['api_key' => '...']` to
 the constructor.
 
-**`Tool::__construct(): Argument #3 ($parameters) could not be passed by reference`** —
-assign the array to a variable first.
+**`Only variables should be passed by reference`** — `new Tool(...)` takes
+`$parameters` by reference and `MessageCollection::add()` takes its `Message` by
+reference. Assign to a variable first instead of passing a literal or a function
+result.
 
 **`Invalid model format`** — you left off the `provider:` prefix.
 
@@ -185,5 +188,5 @@ assign the array to a variable first.
 ## More
 
 - [Main README](../README.md) — full API reference and provider configuration
-- [INSTRUCTIONS.md](../INSTRUCTIONS.md) — developer onboarding
+- [AGENTS.md](../AGENTS.md) — developer onboarding
 - [`tests/`](../tests/) — more usage patterns
