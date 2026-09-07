@@ -30,32 +30,32 @@ namespace {
         /**
          * Set temperature
          */
-        public function setTemperature(float $_temperature): \Llm {}
+        public function setTemperature(float $temperature): \Llm {}
 
         /**
          * Set max tokens
          */
-        public function setMaxTokens(int $_max_tokens): \Llm {}
+        public function setMaxTokens(int $max_tokens): \Llm {}
 
         /**
          * Set top_p
          */
-        public function setTopP(float $_top_p): \Llm {}
+        public function setTopP(float $top_p): \Llm {}
 
         /**
          * Set frequency penalty
          */
-        public function setFrequencyPenalty(float $_penalty): \Llm {}
+        public function setFrequencyPenalty(float $penalty): \Llm {}
 
         /**
          * Set presence penalty
          */
-        public function setPresencePenalty(float $_penalty): \Llm {}
+        public function setPresencePenalty(float $penalty): \Llm {}
 
         /**
          * Create a new LLM instance
          */
-        public function __construct(string $model, ?array $_options = null) {}
+        public function __construct(string $model, ?array $options = null) {}
     }
 
     /**
@@ -364,33 +364,33 @@ namespace {
     }
 
     class LLMException extends \Exception {
-        protected $message;
-
         protected $code;
+
+        protected $message;
 
         public function __construct(?string $message = null, ?int $code = null) {}
     }
 
     class LLMConnectionException extends \Exception {
-        protected $code;
-
         protected $message;
+
+        protected $code;
 
         public function __construct(?string $message = null, ?int $code = null) {}
     }
 
     class LLMValidationException extends \Exception {
-        protected $message;
-
         protected $code;
+
+        protected $message;
 
         public function __construct(?string $message = null, ?int $code = null) {}
     }
 
     class LLMStructuredOutputException extends \Exception {
-        protected $code;
-
         protected $message;
+
+        protected $code;
 
         public function __construct(?string $message = null, ?int $code = null) {}
     }
