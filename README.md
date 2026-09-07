@@ -1,460 +1,542 @@
 # LLM PHP Extension
 
-High-level PHP extension for interacting with Large Language Models using the octolib crate. Provides structured output and tool calling support with a clean, object-oriented API.
+PHP extension for talking to LLM providers, written in Rust on top of the
+[octolib](https://crates.io/crates/octolib) crate (pinned to `0.36.3`).
+Provides completions, structured output and tool calling through a small
+object-oriented API.
 
 ## Features
 
-- ✅ **Multi-provider support**: OpenAI, Anthropic, OpenRouter, Google Vertex AI, Amazon Bedrock, Cloudflare Workers AI, DeepSeek, Z.ai
-- ✅ **Structured output**: JSON and JSON Schema validation
-- ✅ **Tool calling**: Function definitions with auto-execution
-- ✅ **Fluent interface**: Chainable methods for elegant code
-- ✅ **Builder pattern**: Separate builders for complex operations
-- ✅ **Type safety**: Strong typing throughout
-- ✅ **Static compilation**: Can be embedded in PHP binary
-- ✅ **Comprehensive error handling**: Custom exception hierarchy
-- ✅ **IDE support**: Full PHPDoc stubs
+- **28 providers** through octolib: OpenAI, Anthropic, xAI, OpenRouter, Google Vertex/Studio,
+  Amazon Bedrock, Cloudflare, DeepSeek, Groq, Cerebras, Moonshot, MiniMax, Z.ai, Together,
+  Fireworks, NVIDIA, and any OpenAI-compatible endpoint via `local:`
+- **Structured output**: JSON mode and JSON Schema
+- **Tool calling**: function definitions, tool calls returned to PHP for you to execute
+- **Fluent interface**: chainable setters
+- **Exception hierarchy**: `LLMException` and four subclasses, all extending `\Exception`
+- **IDE stubs**: `php/llm.php`
 
 ## Requirements
 
-- PHP 8.1 or later
-- Rust 1.70 or later
-- Clang 5.0 or later
-- cargo-php (install via `cargo install cargo-php`)
+- PHP 8.1+ (CI builds and tests against PHP 8.4)
+- Rust stable, `ext-php-rs` 0.15.3
+- LLVM/Clang 17 (`ext-php-rs` uses bindgen)
+- `cargo-php` — only needed for `make install` and `make stubs`
 
 ## Installation
 
-### Via cargo-php (Recommended)
+Use `make`, not raw `cargo build`. On macOS the Makefile sets the LLVM 17
+environment variables that bindgen needs; a bare `cargo build` will fail.
 
 ```bash
-cargo install cargo-php --locked
-cd llm-php-ext
-cargo php install
+make build      # debug  -> target/debug/libllm.{dylib,so}
+make release    # release -> target/release/libllm.{dylib,so}
+make install    # release build + cargo php install
+make stubs      # regenerate php/llm.php
+make test       # build + run the PHP test suite
+make ci         # everything CI runs, locally
 ```
 
-### From Source
+macOS additionally needs LLVM 17 from Homebrew:
 
 ```bash
-# Build extension
-cargo build --release
-
-# Install to PHP
-cargo php install
-
-# Generate IDE stubs
-cargo php stubs --stdout > php/llm.php
+brew install llvm@17
 ```
 
-### Cross-Platform Builds
+Load the extension explicitly when you have not installed it into PHP:
 
 ```bash
-# Linux
-make build-linux-release
-
 # macOS
-make build-macos-release
-
-# Windows
-make build-windows-release
+php -d 'extension=target/debug/libllm.dylib' script.php
+# Linux
+php -d 'extension=target/debug/libllm.so' script.php
 ```
 
-## Quick Start
+Cross-compilation targets: `make build-linux[-release]`, `make build-macos[-release]`,
+`make build-windows[-release]`, `make build-musl[-release]` (Alpine).
 
-### Basic Completion
+## Quick start
 
 ```php
 <?php
-$llm = new LLM('openai:gpt-4o');
+$llm = new LLM('openai:gpt-5.4-mini');
 
-$messages = MessageCollection::fromArray([
-    Message::user('What is PHP?')
+$response = $llm->complete([Message::user('What is PHP?')]);
+
+echo $response->getContent(), "\n";
+echo "Tokens: ", $response->getUsage()->getTotalTokens(), "\n";
+```
+
+`complete()` accepts either a plain array of `Message` objects (or message arrays)
+or a `MessageCollection`.
+
+---
+
+## Choosing a provider and an endpoint
+
+This is the part that trips people up. Read it before anything else.
+
+### Model strings
+
+Every model string is `provider:model`. The provider prefix is **required** —
+octolib rejects a bare model name.
+
+```php
+new LLM('openai:gpt-5.4');
+new LLM('anthropic:claude-opus-4-5');
+new LLM('local:qwen3-coder');
+```
+
+### How credentials and URLs are resolved
+
+octolib reads everything from environment variables. The constructor's `options`
+array is only a convenience that sets those variables for you:
+
+| Option | Sets the env var | Notes |
+|---|---|---|
+| `api_key` | `{PROVIDER}_API_KEY` | |
+| `base_url` | `{PROVIDER}_API_URL` | **Full endpoint URL, including the path.** Not a base. |
+
+`{PROVIDER}` is the uppercased prefix from the model string (`kimi` is mapped to
+`MOONSHOT`). These are the only two keys read; anything else in `options` is ignored.
+
+```php
+$llm = new LLM('openai:gpt-5.4', [
+    'api_key'  => 'sk-...',
+    'base_url' => 'https://my-gateway.example.com/v1/responses',
 ]);
 
-$response = $llm->complete($messages);
-echo $response->getContent();
-echo "Tokens used: " . $response->getUsage()->getTotalTokens();
+// Equivalent:
+putenv('OPENAI_API_KEY=sk-...');
+putenv('OPENAI_API_URL=https://my-gateway.example.com/v1/responses');
+$llm = new LLM('openai:gpt-5.4');
 ```
 
-### Structured Output
+> `base_url` is a misleading name. It is written verbatim into `{PROVIDER}_API_URL`,
+> and octolib POSTs to exactly that URL. `https://host/v1` will not work —
+> you must give the complete path, e.g. `https://host/v1/chat/completions`.
+
+### Where exactly does the URL go?
+
+`base_url` is a misleading name. It is not a base — it is the **complete URL
+octolib POSTs to**, path and all. Nothing is appended to it.
 
 ```php
-<?php
+// ✅ correct — full path to the endpoint
+'base_url' => 'https://inference.internal/v1/chat/completions'
+
+// ❌ wrong — no path; the request goes to the bare host and 404s
+'base_url' => 'https://inference.internal'
+
+// ❌ wrong — the version prefix alone; octolib does not append /chat/completions
+'base_url' => 'https://inference.internal/v1'
+```
+
+Rule of thumb: take the URL you would `curl`, and paste that.
+
+```bash
+curl https://inference.internal/v1/chat/completions -d '{"model":"...","messages":[...]}'
+#    └────────────── this whole thing is base_url ──────────────┘
+```
+
+The correct suffix depends on the protocol the provider speaks:
+
+| Provider prefix | Suffix your URL must end with |
+|---|---|
+| `openai`, `xai` | `/v1/responses` |
+| `local`, `ollama`, `openrouter`, `groq`, and the other OpenAI-compatible ones | `/v1/chat/completions` |
+| `anthropic`, `minimax` | `/v1/messages` |
+
+### Responses API vs OpenAI-compatible (Chat Completions)
+
+There are two different OpenAI wire protocols, and picking the wrong prefix is
+the usual cause of a confusing 400.
+
+|  | **Responses API** | **OpenAI-compatible / Chat Completions** |
+|---|---|---|
+| Prefixes | `openai:`, `xai:` | `local:`, `ollama:`, `openrouter:`, `groq:`, `cerebras:`, … |
+| Path | `/v1/responses` | `/v1/chat/completions` |
+| Messages field | `input` | `messages` |
+| Token limit field | `max_output_tokens` | `max_tokens` |
+| Tool shape | top-level `{type, name, parameters}` | nested `{type, function:{...}}` |
+| Response envelope | `output[]` | `choices[]` |
+
+They are not interchangeable. If you point `OPENAI_API_URL` at a
+`/v1/chat/completions` server, the server rejects the request or the response
+fails to deserialize — and **there is no switch to make `openai:` speak Chat
+Completions.**
+
+**So: for any OpenAI-compatible endpoint, use `local:`.** Despite the name it is
+not restricted to localhost — it accepts any model name and any URL, and its API
+key is optional.
+
+```php
+// Self-hosted or third-party OpenAI-compatible API:
+// vLLM, LM Studio, LocalAI, Jan, LiteLLM, a corporate gateway, a cloud provider
+$llm = new LLM('local:qwen3-coder', [
+    'base_url' => 'https://inference.internal/v1/chat/completions',
+    'api_key'  => 'sk-...',   // optional — LOCAL_API_KEY may be empty
+]);
+
+// Ollama on this machine — already the default LOCAL_API_URL, no options needed
+$llm = new LLM('local:llama3.2');
+
+// LM Studio
+$llm = new LLM('local:qwen3-coder', [
+    'base_url' => 'http://localhost:1234/v1/chat/completions',
+]);
+
+// Real OpenAI — leave base_url alone, the default is correct
+$llm = new LLM('openai:gpt-5.4', ['api_key' => 'sk-...']);
+
+// A gateway that genuinely proxies the Responses API
+$llm = new LLM('openai:gpt-5.4', [
+    'base_url' => 'https://my-gateway.example.com/v1/responses',
+]);
+```
+
+Choosing between them:
+
+- The endpoint's docs say **"OpenAI-compatible"** and you `curl` it at
+  `/v1/chat/completions` → use `local:`.
+- You are calling **api.openai.com** itself, or a proxy that forwards the
+  Responses API verbatim → use `openai:`.
+
+### Provider reference
+
+Default endpoint and URL-override variable for each provider prefix. Anything
+under "Chat Completions" is OpenAI-compatible on the wire.
+
+| Prefix | Protocol | URL override env | Default endpoint |
+|---|---|---|---|
+| `openai` | **Responses** | `OPENAI_API_URL` | `https://api.openai.com/v1/responses` |
+| `xai` | **Responses** | `XAI_API_URL` | `https://api.x.ai/v1/responses` |
+| `anthropic` | Anthropic Messages | `ANTHROPIC_API_URL` | `https://api.anthropic.com/v1/messages` |
+| `minimax` | Anthropic Messages | `MINIMAX_API_URL` | `https://api.minimax.io/anthropic/v1/messages` |
+| `local` | Chat Completions | `LOCAL_API_URL` | `http://localhost:11434/v1/chat/completions` |
+| `ollama` | Chat Completions | `OLLAMA_API_URL` | `https://ollama.com/v1/chat/completions` |
+| `openrouter` | Chat Completions | `OPENROUTER_API_URL` | `https://openrouter.ai/api/v1/chat/completions` |
+| `groq` | Chat Completions | `GROQ_API_URL` | `https://api.groq.com/openai/v1/chat/completions` |
+| `cerebras` | Chat Completions | `CEREBRAS_API_URL` | `https://api.cerebras.ai/v1/chat/completions` |
+| `nvidia` | Chat Completions | `NVIDIA_API_URL` | `https://integrate.api.nvidia.com/v1/chat/completions` |
+| `fireworks` | Chat Completions | `FIREWORKS_API_URL` | `https://api.fireworks.ai/inference/v1/chat/completions` |
+| `featherless` | Chat Completions | `FEATHERLESS_API_URL` | `https://api.featherless.ai/v1/chat/completions` |
+| `hetzner` | Chat Completions | `HETZNER_API_URL` | `https://inference.hetzner.com/api/v1/chat/completions` |
+| `meta` | Chat Completions | `META_API_URL` | `https://api.meta.ai/v1/chat/completions` |
+| `byteplus` | Chat Completions | `BYTEPLUS_API_URL` | `https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions` |
+| `zai` | Chat Completions | `ZAI_API_URL` | `https://api.z.ai/api/paas/v4/chat/completions` |
+| `alibaba` | Chat Completions | `ALIBABA_API_URL` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions` |
+| `opencode-zen` | Chat Completions | `OPENCODE_ZEN_API_URL` | `https://opencode.ai/zen/v1/chat/completions` |
+| `opencode-go` | Chat Completions | `OPENCODE_GO_API_URL` | `https://opencode.ai/zen/go/v1/chat/completions` |
+| `octohub` | Chat Completions | `OCTOHUB_API_URL` | `https://hub.octomind.run` |
+| `google-studio` | Google | `GOOGLE_STUDIO_API_URL` | Gemini API |
+| `google-vertex` | Google | `GOOGLE_VERTEX_API_URL` | Vertex AI (templated per project/location) |
+| `amazon` | Bedrock | `AWS_BEDROCK_API_URL` | Bedrock (templated per region) |
+| `cloudflare` | Workers AI | `CLOUDFLARE_API_URL` | Workers AI (templated per account) |
+| `deepseek` | Chat Completions | — none — | fixed |
+| `moonshot` / `kimi` | Chat Completions | — none — | fixed |
+| `together` | Chat Completions | — none — | `https://api.together.xyz/v1/chat/completions` |
+| `cli` | local CLI subprocess | — | `cli:<backend>/<model>` |
+
+### Known gotchas in the option-to-env mapping
+
+The `api_key` / `base_url` options build the env var name from the provider prefix,
+which does not always match what octolib reads. In these cases the options are
+**silently ignored** — set the real variable with `putenv()` or in your environment:
+
+| Model prefix | Option produces | octolib actually reads |
+|---|---|---|
+| `google-vertex` | `GOOGLE-VERTEX_API_KEY` / `_API_URL` | `GOOGLE_VERTEX_PROJECT_ID`, `GOOGLE_VERTEX_LOCATION`, `GOOGLE_VERTEX_API_URL`, `GOOGLE_VERTEX_CREDENTIAL_FILE` |
+| `google-studio` | `GOOGLE-STUDIO_API_KEY` / `_API_URL` | `GOOGLE_STUDIO_API_KEY`, `GOOGLE_STUDIO_API_URL` |
+| `opencode-zen` / `opencode-go` | `OPENCODE-ZEN_*` | `OPENCODE_API_KEY`, `OPENCODE_ZEN_API_URL` / `OPENCODE_GO_API_URL` |
+| `amazon` | `AMAZON_API_KEY` / `AMAZON_API_URL` | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_BEDROCK_REGION`, `AWS_BEDROCK_API_URL` |
+| `cloudflare` | `CLOUDFLARE_API_KEY` / `_API_URL` | those, plus `CLOUDFLARE_ACCOUNT_ID` |
+| `deepseek`, `moonshot`, `together` | `*_API_URL` | no URL override exists; only the key is used |
+
+Two more things worth knowing:
+
+- The constructor writes into the **process** environment. In a long-running SAPI
+  (PHP-FPM, Swoole) a later `new LLM()` for the same provider overwrites the key for
+  every subsequent request in that worker. Do not mix per-tenant credentials for the
+  same provider in one process.
+- `anthropic:` also accepts `ANTHROPIC_OAUTH_ACCESS_TOKEN`, and `openai:` accepts
+  `OPENAI_OAUTH_ACCESS_TOKEN` + `OPENAI_OAUTH_ACCOUNT_ID`, in place of an API key.
+
+---
+
+## API reference
+
+PHP class names are case-insensitive; the stubs declare `Llm` and the tests use
+`LLM`. Both work.
+
+### LLM
+
+```php
+__construct(string $model, ?array $options = null)
+
+complete(array|MessageCollection $messages): Response
+structured(?string $schema = null): StructuredBuilder
+withTools(?array $tools = null): ToolBuilder          // array of Tool objects
+withOptions(array $options): LLM
+setTemperature(float $t): LLM
+setMaxTokens(int $n): LLM
+setTopP(float $p): LLM
+setFrequencyPenalty(float $p): LLM
+setPresencePenalty(float $p): LLM
+```
+
+`withOptions()` reads `temperature`, `max_tokens`, `top_p`, `frequency_penalty`,
+`presence_penalty`. Defaults: temperature `0.7`, max tokens `1000`, top_p `1.0`,
+penalties `0.0`. `top_k` is fixed at `50`.
+
+`frequency_penalty` and `presence_penalty` are stored but never sent to the
+provider. There is no `timeout` option.
+
+### Response
+
+```php
+getContent(): string
+getUsage(): Usage
+getModel(): string
+getFinishReason(): string
+toArray(): array
+toJson(): string
+```
+
+### Usage
+
+```php
+getPromptTokens(): int    // octolib TokenUsage.input_tokens
+getOutputTokens(): int    // octolib TokenUsage.output_tokens
+getTotalTokens(): int
+toArray(): array
+toJson(): string
+```
+
+octolib also reports reasoning tokens, cache read/write tokens, cost and request
+time. Those are not surfaced by this extension.
+
+### Message / MessageCollection
+
+```php
+Message::user(string $content): Message
+Message::assistant(string $content): Message
+Message::system(string $content): Message
+Message::tool(string $toolCallId, string $result): Message
+Message::fromResponse(ToolResponse $response): Message
+Message::fromArray(array $data): Message              // needs 'role' and 'content'
+
+$message->getRole(): string
+$message->getContent(): string
+$message->getToolCalls(): ?string    // JSON string, not an array
+$message->getId(): ?string
+$message->getToolCallId(): ?string
+
+$c = new MessageCollection();                 // or MessageCollection::fromArray([...])
+$c->add(Message $m): MessageCollection
+$c->addUser(string $s): MessageCollection
+$c->addAssistant(string $s): MessageCollection
+$c->addSystem(string $s): MessageCollection
+$c->addToolResult(string $id, string $result): MessageCollection
+$c->get(int $i): ?Message
+$c->all(): Message[]
+$c->count(): int
+```
+
+`new MessageCollection([...])` and `MessageCollection::fromArray([...])` take
+**message arrays**, not `Message` objects. To build from objects, chain `add()`,
+or pass the object array straight to `complete()`.
+
+### Tool / ToolCall
+
+```php
+new Tool(string $name, string $description, array|string $parameters)
+Tool::fromArray(['name' => ..., 'description' => ..., 'parameters' => ...]): Tool
+$tool->getName(): string
+$tool->getDescription(): string
+$tool->getParameters(): string        // JSON string
+
+$call->getId(): string
+$call->getName(): string
+$call->getArguments(): array          // decoded
+```
+
+The `$parameters` argument is taken by reference, so pass a variable:
+
+```php
+$params = ['type' => 'object', 'properties' => [...]];
+$tool = new Tool('get_weather', 'Get the weather', $params);
+```
+
+## Structured output
+
+```php
 $schema = json_encode([
     'type' => 'object',
     'properties' => [
-        'name' => ['type' => 'string'],
-        'age' => ['type' => 'number'],
-        'skills' => ['type' => 'array', 'items' => ['type' => 'string']]
-    ]
+        'name'   => ['type' => 'string'],
+        'age'    => ['type' => 'number'],
+        'skills' => ['type' => 'array', 'items' => ['type' => 'string']],
+    ],
+    'required' => ['name', 'age'],
 ]);
 
-$llm = new LLM('openai:gpt-4o');
+$response = (new LLM('openai:gpt-5.4-mini'))
+    ->structured($schema)
+    ->complete([Message::user('Describe a software engineer')]);
 
-$response = $llm->structured($schema)
-    ->complete([Message::user('Tell me about a software engineer')]);
-
-print_r($response->getStructured());
+$data = json_decode($response->getContent(), true);
 ```
 
-### Tool Calling
+`structured()` with no schema requests plain JSON mode. With a schema it sends a
+`json_schema` response format.
+
+> **`getStructured()` currently returns `null`.** It is stubbed out pending a Zval
+> cloning fix in ext-php-rs 0.15.x (`src/structured_builder.rs`). Decode
+> `getContent()` instead — it holds the raw JSON text.
+
+`StructuredBuilder::complete()` throws `LLMStructuredOutputException` when the
+provider/model does not support structured output at all, when the schema is not
+valid JSON, or when the provider returns no structured payload.
+`withFormat()` exists on the builder but is not wired to anything.
+
+Not every provider enforces schemas server-side — see octolib's
+[provider support matrix](https://github.com/muvon/octolib#-provider-support-matrix).
+Anthropic, Google Vertex, Amazon Bedrock and Cloudflare have no structured output support.
+
+## Tool calling
+
+There is **no auto-execution**. `setAutoExecute()` exists on `ToolBuilder` but is
+never read. You run the functions yourself and feed results back.
 
 ```php
-<?php
-$weatherTool = new Tool(
-    'get_weather',
-    'Get current weather for a location',
-    [
-        'type' => 'object',
-        'properties' => [
-            'location' => ['type' => 'string']
-        ]
-    ]
-);
+$params = [
+    'type' => 'object',
+    'properties' => ['location' => ['type' => 'string']],
+    'required' => ['location'],
+];
+$tool = new Tool('get_weather', 'Get current weather for a location', $params);
 
-$llm = new LLM('openai:gpt-4o');
+$builder  = (new LLM('openai:gpt-5.4'))->withTools([$tool]);
+$messages = new MessageCollection();
+$messages->addUser("What's the weather in Tokyo?");
 
-$response = $llm->withTools([$weatherTool])
-    ->complete([Message::user("What's the weather in Tokyo?")]);
+$response = $builder->complete($messages);
 
 if ($response->hasToolCalls()) {
+    // Keep the assistant turn that requested the calls.
+    $messages->add(Message::fromResponse($response));
+
     foreach ($response->getToolCalls() as $call) {
         $result = getWeather($call->getArguments()['location']);
-        // Continue conversation with tool result
+        $messages->addToolResult($call->getId(), $result);
     }
+
+    $final = $builder->complete($messages);
+    echo $final->getContent();
 }
 ```
 
-### Fluent Interface
+`Message::fromResponse()` is what preserves the assistant's `tool_calls` in the
+history. Skipping it makes most providers reject the follow-up request.
 
-```php
-<?php
-$response = (new LLM('openai:gpt-4o'))
-    ->setTemperature(0.8)
-    ->setMaxTokens(500)
-    ->setTopP(0.9)
-    ->complete([
-        Message::user('Write a haiku about Rust')
-    ]);
+`ToolResponse` exposes `getContent()`, `getToolCalls()`, `hasToolCalls()`,
+`getUsage()`, `getModel()`, `getId()`, `toArray()`, `toJson()`.
 
-echo $response->getContent();
-```
+`ToolBuilder::addTool()` takes a `Tool` object; `ToolBuilder::setTools()` takes an
+array of **tool arrays** (same shape as `Tool::fromArray`). Tool choice is not exposed.
 
-## API Reference
+## Not exposed
 
-### LLM Class
+octolib supports these; this extension does not surface them yet:
+streaming, thinking/reasoning blocks and reasoning effort, prompt caching,
+per-request cost, vision and other multimodal input, `tool_choice`, custom
+timeouts and retry configuration, and embeddings/reranking (the crate is built
+with `default-features = false, features = ["llm"]`).
 
-Main class for interacting with language models.
+## Error handling
 
-#### Constructor
-
-```php
-__construct(string $model, array $options = [])
-```
-
-- `$model`: Model identifier (e.g., `'openai:gpt-4o'`, `'anthropic:claude-3-opus'`)
-- `$options`: Configuration options
-  - `api_key`: API key (optional, uses environment variable if not provided)
-  - `base_url`: Custom base URL (optional)
-  - `timeout`: Request timeout in seconds (default: 30)
-
-#### Methods
-
-```php
-complete(array|MessageCollection $messages): Response
-structured(?string $schema = null): StructuredBuilder
-withTools(array $tools = []): ToolBuilder
-withOptions(array $options): self
-setTemperature(float $temperature): self
-setMaxTokens(int $maxTokens): self
-setTopP(float $topP): self
-setFrequencyPenalty(float $penalty): self
-setPresencePenalty(float $penalty): self
-```
-
-### Response Classes
-
-#### Response
-
-```php
-$content = $response->getContent();
-$usage = $response->getUsage();
-$model = $response->getModel();
-$finishReason = $response->getFinishReason();
-$array = $response->toArray();
-$json = $response->toJson();
-```
-
-#### StructuredResponse
-
-```php
-$content = $response->getContent();
-$structured = $response->getStructured(); // Parsed JSON
-$usage = $response->getUsage();
-```
-
-#### ToolResponse
-
-```php
-$content = $response->getContent();
-$toolCalls = $response->getToolCalls();
-$hasTools = $response->hasToolCalls();
-```
-
-### Usage Class
-
-```php
-$promptTokens = $usage->getPromptTokens();
-$completionTokens = $usage->getCompletionTokens();
-$totalTokens = $usage->getTotalTokens();
-```
-
-### Message Classes
-
-#### Message
-
-```php
-$userMsg = Message::user('Hello');
-$assistantMsg = Message::assistant('Hi there!');
-$systemMsg = Message::system('You are helpful.');
-$toolMsg = Message::tool('call_123', 'Result');
-```
-
-#### MessageCollection
-
-```php
-$messages = new MessageCollection();
-$messages->addUser('Hello')
-         ->addAssistant('Hi!')
-         ->addSystem('Be helpful');
-
-// Or from array
-$messages = MessageCollection::fromArray([
-    Message::user('Hello'),
-    Message::assistant('Hi!')
-]);
-```
-
-### Tool Classes
-
-#### Tool
-
-```php
-$tool = new Tool(
-    'function_name',
-    'Function description',
-    [
-        'type' => 'object',
-        'properties' => [
-            'param' => ['type' => 'string']
-        ]
-    ]
-);
-```
-
-#### ToolCall
-
-```php
-$id = $call->getId();
-$name = $call->getName();
-$args = $call->getArguments();
-```
-
-## Supported Providers
-
-- **OpenAI**: `openai:gpt-4o`, `openai:gpt-4-turbo`, etc.
-- **Anthropic**: `anthropic:claude-3-opus`, `anthropic:claude-3-sonnet`, etc.
-- **OpenRouter**: `openrouter:model-name`
-- **Google Vertex AI**: `vertex:model-name`
-- **Amazon Bedrock**: `bedrock:model-name`
-- **Cloudflare Workers AI**: `workers-ai:model-name`
-- **DeepSeek**: `deepseek:deepseek-chat`
-- **Z.ai**: `zai:model-name`
-
-## Configuration
-
-### API Keys
-
-Set via environment variables or constructor options:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-Or in code:
-
-```php
-$llm = new LLM('openai:gpt-4o', [
-    'api_key' => 'sk-...'
-]);
-```
-
-### Model Parameters
-
-```php
-$llm->setTemperature(0.7)      // 0.0-2.0, default 0.7
-     ->setMaxTokens(1000)        // Maximum tokens, default 1000
-     ->setTopP(0.9)            // 0.0-1.0, default 1.0
-     ->setFrequencyPenalty(0.0)  // -2.0-2.0, default 0.0
-     ->setPresencePenalty(0.0);  // -2.0-2.0, default 0.0
-```
-
-## Error Handling
+All five classes extend `\Exception`.
 
 ```php
 try {
     $response = $llm->complete($messages);
 } catch (LLMConnectionException $e) {
-    // Network or API errors
-    echo "Connection error: " . $e->getMessage();
+    // network failure, HTTP error from the API, or timeout
 } catch (LLMValidationException $e) {
-    // Invalid parameters
-    echo "Validation error: " . $e->getMessage();
+    // bad model string, unsupported model, malformed message or tool schema
 } catch (LLMStructuredOutputException $e) {
-    // Structured output errors
-    echo "Structured output error: " . $e->getMessage();
+    // structured output unsupported, bad schema, or missing structured payload
 } catch (LLMToolCallException $e) {
-    // Tool calling errors
-    echo "Tool call error: " . $e->getMessage();
+    // tool call errors from octolib
 } catch (LLMException $e) {
-    // Generic errors
-    echo "LLM error: " . $e->getMessage();
+    // anything else
 }
 ```
 
 ## Testing
 
 ```bash
-# Run all tests
 make test
-
-# Or directly
-php tests/run_tests.php
+# or
+php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
 ```
 
-## Continuous Integration
+The suite covers construction, message building, tool definitions and the
+exception classes. It does not make network calls, so no API keys are needed.
 
-This project uses GitHub Actions for continuous integration. The CI pipeline:
+## Continuous integration
 
-- ✅ Runs on every push and pull request to `main` and `develop` branches
-- ✅ Checks code formatting with `cargo fmt`
-- ✅ Lints code with `cargo clippy`
-- ✅ Runs Rust unit tests
-- ✅ Builds extension on Ubuntu and macOS
-- ✅ Runs PHP integration tests
-- ✅ Generates and verifies PHP stubs
+`.github/workflows/ci.yml` runs on `main` and `develop`: `cargo fmt --check`,
+`cargo clippy -D warnings`, `cargo test`, then debug and release builds plus the
+PHP test suite on Ubuntu (PHP 8.4, LLVM 17), macOS (ARM and Intel) and Alpine/musl,
+followed by stub generation.
 
-### Running CI Locally
-
-You can run the entire CI pipeline locally before pushing:
-
-```bash
-make ci
-```
-
-This will execute all CI checks in order:
-1. Code formatting check
-2. Clippy linting
-3. Rust unit tests
-4. Extension build
-5. PHP integration tests
-6. Stub generation
-
-For detailed CI documentation, see [CI.md](CI.md).
-
-## Building from Source
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/manticoresearch/llm-php-ext.git
-cd llm-php-ext
-
-# Install dependencies
-cargo build
-
-# Generate stubs
-cargo php stubs --stdout > php/llm.php
-```
-
-### Static Compilation
-
-```bash
-# Build for static linking
-make static
-
-# This creates a static library that can be embedded in PHP
-```
-
-### Cross-Platform Builds
-
-```bash
-# Linux
-cargo build --release --target x86_64-unknown-linux-gnu
-
-# macOS
-cargo build --release --target aarch64-apple-darwin
-
-# Windows
-cargo build --release --target x86_64-pc-windows-msvc
-```
+`make ci` runs the same checks locally. On macOS it skips `cargo test` because of
+a known bindgen/LLVM 17 incompatibility.
 
 ## Troubleshooting
 
-### Build Errors
+**`Cannot turn unknown calling convention to tokens: 20`** — bindgen cannot find
+LLVM 17. Use `make build`, which sets `LIBCLANG_PATH`, `LLVM_CONFIG_PATH` and
+`PATH` for you. On macOS install it first with `brew install llvm@17`.
 
-**Error**: `Cannot turn unknown calling convention to tokens: 20`
+**`Library not loaded: @rpath/libclang.dylib`** — `xcode-select --install`.
 
-**Solution**: This is a bindgen issue with ext-php-rs. Try:
-```bash
-export LIBCLANG_PATH=$(xcrun --show-sdk-path)/usr/lib
-cargo clean
-cargo build
-```
+**`Invalid model format ... Must specify provider like 'provider:model'`** — the
+provider prefix is mandatory. `gpt-5.4` is invalid; `openai:gpt-5.4` is not.
 
-**Error**: `Library not loaded: @rpath/libclang.dylib`
+**`Unsupported provider: X`** — check the prefix against the provider table above.
+`vertex`, `bedrock` and `workers-ai` are not prefixes; use `google-vertex`,
+`amazon` and `cloudflare`.
 
-**Solution**: Install Xcode command line tools:
-```bash
-xcode-select --install
-```
+**`Provider 'X' does not support model 'Y'`** — the provider rejected the model
+name. For a third-party OpenAI-compatible endpoint, use `local:`, which accepts
+any model name.
 
-### Runtime Errors
+**A 400 from an OpenAI-compatible server on `openai:`** — you pointed
+`OPENAI_API_URL` at a Chat Completions endpoint. Switch the prefix to `local:`.
 
-**Error**: `Authentication failed`
-
-**Solution**: Set API key via environment variable or constructor:
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-**Error**: `Model not supported`
-
-**Solution**: Check model identifier format: `provider:model`
+**Extension not loaded** — pass `-d 'extension=...'` with the right file for your
+platform (`libllm.dylib` on macOS, `libllm.so` on Linux), or `make install`.
 
 ## Examples
 
-See the `examples/` directory for more examples:
-- `basic_completion.php` - Simple completion
-- `structured_output.php` - JSON schema validation
-- `tool_calling.php` - Function calling
-- `fluent_interface.php` - Fluent API usage
-- `multi_turn.php` - Multi-turn conversations
+See [`examples/`](examples/) — `quick_demo.php` (run with `make example`),
+`basic_completion.php`, `multi_turn.php`, `tool_calling.php`,
+`structured_output.php`, `fluent_interface.php`, `demo.php`.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+Fork, branch, change, add tests, run `make ci`, open a PR.
+See [INSTRUCTIONS.md](INSTRUCTIONS.md) for the developer onboarding notes.
 
 ## License
 
 Apache-2.0
 
-## Support
+## Links
 
-- GitHub Issues: https://github.com/manticoresearch/llm-php-ext/issues
-- Documentation: https://github.com/manticoresearch/llm-php-ext
-- octolib: https://crates.io/crates/octolib
+- Issues: https://github.com/manticoresearch/llm-php-ext/issues
+- octolib: https://crates.io/crates/octolib · https://github.com/muvon/octolib
+- ext-php-rs: https://github.com/davidcole1340/ext-php-rs
