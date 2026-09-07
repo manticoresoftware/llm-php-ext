@@ -8,7 +8,8 @@
 
 // Check if extension is loaded
 if (!extension_loaded('llm')) {
-    die("ERROR: LLM extension is not loaded. Run with: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php\n");
+    fwrite(STDERR, "ERROR: LLM extension is not loaded. Run with: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php\n");
+    exit(1);
 }
 
 class TestRunner {
