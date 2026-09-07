@@ -108,6 +108,19 @@ jobs:
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
 
+      # Pinned to work around an upstream ext-php-rs regression, not a cargo-php
+      # bug: cargo-php's sources are identical from 0.1.18 to 0.1.21, but its
+      # lockfile moved ext-php-rs 0.15.7 -> 0.15.8+. ext-php-rs 0.15.8 (PR #701,
+      # "use zend_string_init_fast()") made src/wrapper.c reference the Zend
+      # globals zend_empty_string / zend_one_char_string, guarded by `#pragma
+      # weak`. That guard works on ELF but is ignored on Mach-O, so linking the
+      # cargo-php *binary* fails on macOS ("ld: symbol(s) not found") and on
+      # Linux it links but dies at runtime ("undefined symbol: zend_hash_find").
+      # Our own extension is unaffected: it is a cdylib built with
+      # -undefined dynamic_lookup (see build.rs).
+      # --locked is load-bearing: without it cargo resolves ext-php-rs to the
+      # newest 0.15.x and the pin has no effect.
+      # Revisit when ext-php-rs ships a fix (0.15.15 is still broken).
       - name: Install cargo-php
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
@@ -217,6 +230,7 @@ jobs:
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
 
+      # See the Ubuntu job for why this is pinned; --locked is load-bearing.
       - name: Install cargo-php
         run: |
           LIBCLANG_PATH=$LIBCLANG_PATH \
