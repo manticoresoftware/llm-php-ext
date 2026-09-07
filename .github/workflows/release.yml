@@ -64,7 +64,7 @@ jobs:
 
   build-linux-arm64:
     name: Build Linux ARM64
-    runs-on: ubuntu-24.04-arm64
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -247,22 +247,22 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           cat > release_notes.md << 'EOF'
-# LLM PHP Extension v$VERSION
+          # LLM PHP Extension v$VERSION
 
-## Artifacts
-- Linux AMD64: `llm-$VERSION-php8.4.17-linux-amd64.so`
-- Linux ARM64: `llm-$VERSION-php8.4.17-linux-arm64.so`
-- macOS AMD64 (Intel): `llm-$VERSION-php8.4.17-macos-amd64.dylib`
-- macOS ARM64 (Apple Silicon): `llm-$VERSION-php8.4.17-macos-arm64.dylib`
+          ## Artifacts
+          - Linux AMD64: `llm-$VERSION-php8.4.17-linux-amd64.so`
+          - Linux ARM64: `llm-$VERSION-php8.4.17-linux-arm64.so`
+          - macOS AMD64 (Intel): `llm-$VERSION-php8.4.17-macos-amd64.dylib`
+          - macOS ARM64 (Apple Silicon): `llm-$VERSION-php8.4.17-macos-arm64.dylib`
 
-## Installation
-Download the appropriate file for your platform and PHP version, then load it as an extension.
+          ## Installation
+          Download the appropriate file for your platform and PHP version, then load it as an extension.
 
-## Checksums
-```
-$(cd release && sha256sum * || shasum -a 256 *)
-```
-EOF
+          ## Checksums
+          ```
+          $(cd release && sha256sum * || shasum -a 256 *)
+          ```
+          EOF
           sed -i "s/\$VERSION/${VERSION}/g" release_notes.md || sed -i '' "s/\$VERSION/${VERSION}/g" release_notes.md
           cat release_notes.md
 

@@ -113,7 +113,7 @@ jobs:
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
           PATH="/usr/lib/llvm-17/bin:$PATH" \
-          cargo install cargo-php
+          cargo install cargo-php --version 0.1.18 --locked
 
       - name: Generate stubs
         run: cargo php stubs --stdout > php/llm.php
@@ -222,7 +222,7 @@ jobs:
           LIBCLANG_PATH=$LIBCLANG_PATH \
           LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
           PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
-          cargo install cargo-php
+          cargo install cargo-php --version 0.1.18 --locked
 
       - name: Generate stubs
         run: |
