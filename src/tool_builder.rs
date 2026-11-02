@@ -24,26 +24,13 @@ fn zval_to_json_value(zval: &Zval) -> serde_json::Value {
         serde_json::Value::Bool(b)
     } else if let Some(arr) = zval.array() {
         // Check if it's an associative array (object) or indexed array
-        let mut is_object = false;
-        for (k, _) in arr.iter() {
-            match k {
-                ext_php_rs::types::ArrayKey::Str(_) | ext_php_rs::types::ArrayKey::String(_) => {
-                    is_object = true;
-                    break;
-                }
-                _ => {}
-            }
-        }
+        let is_object = arr.iter().any(|(k, _)| !k.is_long());
 
         if is_object {
             // Convert to JSON object
             let mut map = serde_json::Map::new();
             for (k, v) in arr.iter() {
-                let key = match k {
-                    ext_php_rs::types::ArrayKey::Str(s) => s.to_string(),
-                    ext_php_rs::types::ArrayKey::String(s) => s,
-                    ext_php_rs::types::ArrayKey::Long(i) => i.to_string(),
-                };
+                let key = k.to_string();
                 map.insert(key, zval_to_json_value(v));
             }
             serde_json::Value::Object(map)

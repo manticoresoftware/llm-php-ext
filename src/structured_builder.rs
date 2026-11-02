@@ -209,23 +209,11 @@ impl StructuredResponse {
             for (k, v) in inner_arr.iter() {
                 // Extract values and re-insert them
                 if let Some(s) = v.string() {
-                    let _ = match k {
-                        ext_php_rs::types::ArrayKey::String(key) => nested.insert(key, s),
-                        ext_php_rs::types::ArrayKey::Long(idx) => nested.insert(idx, s),
-                        ext_php_rs::types::ArrayKey::Str(_) => nested.insert(k, s),
-                    };
+                    let _ = nested.insert(k, s);
                 } else if let Some(i) = v.long() {
-                    let _ = match k {
-                        ext_php_rs::types::ArrayKey::String(key) => nested.insert(key, i),
-                        ext_php_rs::types::ArrayKey::Long(idx) => nested.insert(idx, i),
-                        ext_php_rs::types::ArrayKey::Str(_) => nested.insert(k, i),
-                    };
+                    let _ = nested.insert(k, i);
                 } else if let Some(b) = v.bool() {
-                    let _ = match k {
-                        ext_php_rs::types::ArrayKey::String(key) => nested.insert(key, b),
-                        ext_php_rs::types::ArrayKey::Long(idx) => nested.insert(idx, b),
-                        ext_php_rs::types::ArrayKey::Str(_) => nested.insert(k, b),
-                    };
+                    let _ = nested.insert(k, b);
                 }
             }
             arr.insert("structured", nested)?;
@@ -243,11 +231,7 @@ impl StructuredResponse {
         } else if let Some(arr) = self.structured.array() {
             let mut map = serde_json::Map::new();
             for (k, v) in arr.iter() {
-                let key = match k {
-                    ext_php_rs::types::ArrayKey::Str(s) => s.to_string(),
-                    ext_php_rs::types::ArrayKey::String(s) => s,
-                    ext_php_rs::types::ArrayKey::Long(i) => i.to_string(),
-                };
+                let key = k.to_string();
                 let value = if let Some(s) = v.string() {
                     serde_json::Value::String(s.to_string())
                 } else if let Some(i) = v.long() {
