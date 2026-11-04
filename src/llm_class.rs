@@ -286,7 +286,7 @@ impl Response {
             "finish_reason": self.finish_reason,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }
@@ -342,7 +342,7 @@ impl Usage {
             "total_tokens": self.total_tokens,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }

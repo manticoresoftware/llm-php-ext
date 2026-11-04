@@ -178,7 +178,7 @@ impl Tool {
             "parameters": self.parameters,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }
@@ -226,8 +226,9 @@ impl Clone for ToolCall {
 impl ToolCall {
     pub(crate) fn new(id: String, name: String, arguments: Value) -> PhpResult<Self> {
         // Store arguments as JSON string
-        let arguments_json = serde_json::to_string(&arguments)
-            .map_err(|e| PhpException::default(format!("Failed to serialize arguments: {e}")))?;
+        let arguments_json = serde_json::to_string(&arguments).map_err(|e| {
+            PhpException::from_message(format!("Failed to serialize arguments: {e}"))
+        })?;
 
         Ok(Self {
             id,
@@ -285,7 +286,7 @@ impl ToolCall {
             "arguments": self.arguments_json,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }
@@ -400,7 +401,7 @@ impl ToolResponse {
             "id": self.id,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }
