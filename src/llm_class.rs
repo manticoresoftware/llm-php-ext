@@ -1,7 +1,7 @@
 use ext_php_rs::convert::IntoZval;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{ZendClassObject, ZendHashTable as PhpArray, Zval};
-use octolib::llm::{ChatCompletionParams, ProviderFactory, TokenUsage};
+use octolib::llm::{AiProvider, ChatCompletionParams, ProviderFactory, TokenUsage};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -22,6 +22,18 @@ pub(crate) fn get_env_prefix(model: &str) -> String {
         "kimi" => "MOONSHOT".to_string(),
         other => other.to_uppercase(),
     }
+}
+
+/// Resolve models without using octolib's pricing catalog as an OpenAI allowlist.
+/// OpenAI validates model availability when the request reaches its API.
+pub(crate) fn resolve_provider_model(
+    model_id: &str,
+) -> anyhow::Result<(Box<dyn AiProvider>, String)> {
+    let (provider_name, model_name) = ProviderFactory::parse_model(model_id)?;
+    if provider_name.eq_ignore_ascii_case("openai") {
+        return Ok((ProviderFactory::create_provider("openai")?, model_name));
+    }
+    ProviderFactory::get_provider_for_model(model_id)
 }
 
 /// Main LLM class for interacting with language models
@@ -81,7 +93,7 @@ impl LLM {
         let messages_vec = php_to_messages(messages)?;
 
         let (provider, model) = rt
-            .block_on(async { ProviderFactory::get_provider_for_model(&self.model) })
+            .block_on(async { resolve_provider_model(&self.model) })
             .map_err(|e| e.into_php_exception())?;
 
         let params = ChatCompletionParams::new(
@@ -355,7 +367,7 @@ pub use crate::tool_builder::ToolBuilder;
 
 #[cfg(test)]
 mod tests {
-    use super::get_env_prefix;
+    use super::{get_env_prefix, resolve_provider_model};
 
     #[test]
     fn test_get_env_prefix_standard_providers() {
@@ -390,5 +402,25 @@ mod tests {
     #[test]
     fn test_get_env_prefix_no_colon_fallback() {
         assert_eq!(get_env_prefix("openai"), "OPENAI");
+    }
+
+    #[test]
+    fn test_openai_model_not_in_pricing_catalog_is_allowed() {
+        for id in ["openai:gpt-6-luna", "openai:future-model"] {
+            let (provider, model) = resolve_provider_model(id).unwrap();
+            assert_eq!(provider.name(), "openai");
+            assert_eq!(format!("openai:{model}"), id);
+        }
+        let (provider, model) = resolve_provider_model(" OpenAI : gpt-6-luna ").unwrap();
+        assert_eq!(provider.name(), "openai");
+        assert_eq!(model, "gpt-6-luna");
+    }
+
+    #[test]
+    fn test_other_providers_still_validate_models() {
+        assert!(resolve_provider_model("openai").is_err());
+        assert!(resolve_provider_model("openai:").is_err());
+        assert!(resolve_provider_model("unknown:model").is_err());
+        assert!(resolve_provider_model("anthropic:invalid-model-name").is_err());
     }
 }

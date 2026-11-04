@@ -1,13 +1,13 @@
 use ext_php_rs::convert::IntoZval;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{ZendClassObject, ZendHashTable as PhpArray, Zval};
-use octolib::llm::{ChatCompletionParams, ProviderFactory, StructuredOutputRequest, TokenUsage};
+use octolib::llm::{ChatCompletionParams, StructuredOutputRequest, TokenUsage};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use crate::convert::{json_value_to_php, php_to_messages};
 use crate::error::IntoPhpException;
-use crate::llm_class::Usage;
+use crate::llm_class::{resolve_provider_model, Usage};
 
 /// Builder for structured output
 #[php_class]
@@ -53,7 +53,7 @@ impl StructuredBuilder {
         let messages_vec = php_to_messages(messages)?;
 
         let (provider, model) = rt
-            .block_on(async { ProviderFactory::get_provider_for_model(&this.model) })
+            .block_on(async { resolve_provider_model(&this.model) })
             .map_err(|e| e.into_php_exception())?;
 
         // Check if provider supports structured output
