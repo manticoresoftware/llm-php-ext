@@ -15,7 +15,7 @@ jobs:
   # Rust code quality checks
   rust-quality:
     name: Rust Quality Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # LLVM 17 packages are unavailable for Ubuntu 26.04.
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,6 +24,16 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Install LLVM 17
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          sudo apt-get install -y libclang-17-dev llvm-17-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> "$GITHUB_ENV"
+          echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> "$GITHUB_ENV"
+          echo "/usr/lib/llvm-17/bin" >> "$GITHUB_PATH"
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -55,7 +65,7 @@ jobs:
   # Build and test on Ubuntu
   ubuntu:
     name: Ubuntu Build & Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: rust-quality
     steps:
       - name: Checkout code
@@ -69,7 +79,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 17
-          sudo apt-get install -y libclang-17-dev
+          sudo apt-get install -y libclang-17-dev llvm-17-dev
           echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> $GITHUB_ENV
           echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> $GITHUB_ENV
           echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
