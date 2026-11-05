@@ -81,7 +81,7 @@ impl Message {
                 })
                 .collect();
             Some(serde_json::to_string(&calls_array).map_err(|e| {
-                PhpException::default(format!("Failed to serialize tool calls: {e}"))
+                PhpException::from_message(format!("Failed to serialize tool calls: {e}"))
             })?)
         } else {
             None
@@ -183,7 +183,7 @@ impl Message {
             "tool_calls": self.tool_calls,
         })) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }
@@ -372,7 +372,7 @@ impl MessageCollection {
             .collect();
         match serde_json::to_string(&messages) {
             Ok(json) => Ok(json),
-            Err(e) => Err(PhpException::default(format!(
+            Err(e) => Err(PhpException::from_message(format!(
                 "Failed to serialize to JSON: {e}"
             ))),
         }

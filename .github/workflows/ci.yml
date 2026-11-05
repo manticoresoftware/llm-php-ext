@@ -15,7 +15,10 @@ jobs:
   # Rust code quality checks
   rust-quality:
     name: Rust Quality Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # LLVM 17 packages are unavailable for Ubuntu 26.04.
+    env:
+      PHP: /usr/bin/php8.5
+      PHP_CONFIG: /usr/bin/php-config8.5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,6 +27,23 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Install LLVM 17
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          sudo apt-get install -y libclang-17-dev llvm-17-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> "$GITHUB_ENV"
+          echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> "$GITHUB_ENV"
+          echo "/usr/lib/llvm-17/bin" >> "$GITHUB_PATH"
+
+      - name: Install PHP 8.5
+        run: |
+          sudo add-apt-repository ppa:ondrej/php -y
+          sudo apt-get update
+          sudo apt-get install -y php8.5 php8.5-dev php8.5-cli
+          "$PHP" -v
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -41,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-ubuntu-24.04-rust-quality-php8.5-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo fmt check
         run: cargo fmt --all -- --check
@@ -55,8 +75,11 @@ jobs:
   # Build and test on Ubuntu
   ubuntu:
     name: Ubuntu Build & Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: rust-quality
+    env:
+      PHP: /usr/bin/php8.5
+      PHP_CONFIG: /usr/bin/php-config8.5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,17 +92,17 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 17
-          sudo apt-get install -y libclang-17-dev
+          sudo apt-get install -y libclang-17-dev llvm-17-dev
           echo "LIBCLANG_PATH=/usr/lib/llvm-17/lib" >> $GITHUB_ENV
           echo "LLVM_CONFIG_PATH=/usr/lib/llvm-17/bin/llvm-config" >> $GITHUB_ENV
           echo "/usr/lib/llvm-17/bin" >> $GITHUB_PATH
 
-      - name: Install PHP 8.4
+      - name: Install PHP 8.5
         run: |
           sudo add-apt-repository ppa:ondrej/php -y
           sudo apt-get update
-          sudo apt-get install -y php8.4 php8.4-dev php8.4-cli
-          php -v
+          sudo apt-get install -y php8.5 php8.5-dev php8.5-cli
+          "$PHP" -v
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -97,7 +120,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-ubuntu-24.04-php8.5-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build extension (debug)
         run: cargo build --verbose
@@ -106,27 +129,16 @@ jobs:
         run: cargo build --release --verbose
 
       - name: Run PHP tests
-        run: php -d 'extension=target/debug/libllm.so' tests/run_tests.php
-
-      # Pinned to work around an upstream ext-php-rs regression, not a cargo-php
-      # bug: cargo-php's sources are identical from 0.1.18 to 0.1.21, but its
-      # lockfile moved ext-php-rs 0.15.7 -> 0.15.8+. ext-php-rs 0.15.8 (PR #701,
-      # "use zend_string_init_fast()") made src/wrapper.c reference the Zend
-      # globals zend_empty_string / zend_one_char_string, guarded by `#pragma
-      # weak`. That guard works on ELF but is ignored on Mach-O, so linking the
-      # cargo-php *binary* fails on macOS ("ld: symbol(s) not found") and on
-      # Linux it links but dies at runtime ("undefined symbol: zend_hash_find").
-      # Our own extension is unaffected: it is a cdylib built with
-      # -undefined dynamic_lookup (see build.rs).
-      # --locked is load-bearing: without it cargo resolves ext-php-rs to the
-      # newest 0.15.x and the pin has no effect.
-      # Revisit when ext-php-rs ships a fix (0.15.15 is still broken).
-      - name: Install cargo-php
         run: |
-          LIBCLANG_PATH=$LIBCLANG_PATH \
-          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="/usr/lib/llvm-17/bin:$PATH" \
-          cargo install cargo-php --version 0.1.18 --locked
+          "$PHP" -d 'extension=target/debug/libllm.so' tests/run_tests.php
+
+      # cargo-php 0.2.x reads the ext-php-rs 0.16 describe ABI
+      # (ext_php_rs_describe_module_v2) and no longer links Zend symbols
+      # itself (upstream ext-php-rs #773/#775), so the old 0.1.x pin and its
+      # unresolved-symbol workarounds are gone. 0.1.x cannot load an extension
+      # built with ext-php-rs 0.16, and 0.2.x refuses one built with 0.15.
+      - name: Install cargo-php
+        run: cargo install cargo-php --version 0.2.2 --locked
 
       - name: Generate stubs
         run: cargo php stubs --stdout > php/llm.php
@@ -163,11 +175,10 @@ jobs:
           echo "HOMEBREW_PREFIX=$HOMEBREW_PREFIX" >> $GITHUB_ENV
           echo "Homebrew prefix: $HOMEBREW_PREFIX"
 
-      - name: Install PHP 8.4
+      - name: Install PHP 8.5
         run: |
-          brew tap shivammathur/php
-          brew install shivammathur/php/php@8.4
-          brew link --overwrite --force shivammathur/php/php@8.4
+          brew install homebrew/core/php@8.5
+          brew link --overwrite --force homebrew/core/php@8.5
           php -v
 
       - name: Install Rust toolchain
@@ -203,7 +214,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-${{ matrix.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-php8.5-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
 
       - name: Run cargo clippy (macOS)
@@ -230,13 +241,9 @@ jobs:
       - name: Run PHP tests
         run: php -d 'extension=target/debug/libllm.dylib' tests/run_tests.php
 
-      # See the Ubuntu job for why this is pinned; --locked is load-bearing.
+      # See the Ubuntu job for why cargo-php 0.2.x is required.
       - name: Install cargo-php
-        run: |
-          LIBCLANG_PATH=$LIBCLANG_PATH \
-          LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH \
-          PATH="$HOMEBREW_PREFIX/opt/llvm@17/bin:$PATH" \
-          cargo install cargo-php --version 0.1.18 --locked
+        run: cargo install cargo-php --version 0.2.2 --locked
 
       - name: Generate stubs
         run: |
@@ -264,7 +271,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: rust-quality
     container:
-      image: alpine:3.21
+      image: alpine:3.23
 
     steps:
       - name: Checkout code
@@ -273,10 +280,10 @@ jobs:
       - name: Install dependencies
         run: |
           apk add --no-cache \
-            php84-dev \
-            php84-cli \
+            php85-dev \
+            php85-cli \
             clang-dev \
-            llvm19-dev \
+            llvm-dev \
             musl-dev \
             gcc \
             g++ \
@@ -285,9 +292,9 @@ jobs:
             file \
             openssl-dev \
             pkgconfig
-          ln -sf /usr/bin/php84 /usr/bin/php
-          ln -sf /usr/bin/php-config84 /usr/bin/php-config
-          ln -sf /usr/bin/phpize84 /usr/bin/phpize
+          ln -sf /usr/bin/php85 /usr/bin/php
+          ln -sf /usr/bin/php-config85 /usr/bin/php-config
+          ln -sf /usr/bin/phpize85 /usr/bin/phpize
 
       - name: Install Rust via rustup
         run: |
