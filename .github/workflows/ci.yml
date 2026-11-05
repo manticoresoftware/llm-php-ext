@@ -177,9 +177,8 @@ jobs:
 
       - name: Install PHP 8.5
         run: |
-          brew tap shivammathur/php
-          brew install shivammathur/php/php@8.5
-          brew link --overwrite --force shivammathur/php/php@8.5
+          brew install homebrew/core/php@8.5
+          brew link --overwrite --force homebrew/core/php@8.5
           php -v
 
       - name: Install Rust toolchain
