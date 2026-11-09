@@ -412,9 +412,9 @@ impl ToolResponse {
 #[php_class]
 pub struct ToolBuilder {
     model: String,
-    temperature: f32,
+    temperature: f64,
     max_tokens: u32,
-    top_p: f32,
+    top_p: f64,
     tools: Vec<Tool>,
     auto_execute: bool,
     runtime: Arc<Runtime>,
@@ -424,9 +424,9 @@ pub struct ToolBuilder {
 impl ToolBuilder {
     pub(crate) fn new(
         model: String,
-        temperature: f32,
+        temperature: f64,
         max_tokens: u32,
-        top_p: f32,
+        top_p: f64,
         tools: Vec<Tool>,
         runtime: Arc<Runtime>,
     ) -> Self {
@@ -532,7 +532,7 @@ impl ToolBuilder {
         self_: &mut ZendClassObject<ToolBuilder>,
         temperature: f64,
     ) -> &mut ZendClassObject<ToolBuilder> {
-        self_.temperature = temperature as f32;
+        self_.temperature = temperature;
         self_
     }
 

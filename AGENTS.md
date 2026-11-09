@@ -142,7 +142,7 @@ pub fn set_temperature(
     self_: &mut ZendClassObject<LLM>,
     temperature: f64,
 ) -> &mut ZendClassObject<LLM> {
-    self_.temperature = temperature as f32;
+    self_.temperature = temperature;
     self_
 }
 ```
