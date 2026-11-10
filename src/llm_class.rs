@@ -29,9 +29,9 @@ pub(crate) fn get_env_prefix(model: &str) -> String {
 #[allow(clippy::upper_case_acronyms)]
 pub struct LLM {
     model: String,
-    temperature: f32,
+    temperature: f64,
     max_tokens: u32,
-    top_p: f32,
+    top_p: f64,
     frequency_penalty: f32,
     presence_penalty: f32,
     runtime: Arc<Runtime>,
@@ -161,13 +161,13 @@ impl LLM {
     ) -> &'a mut ZendClassObject<LLM> {
         let s = &mut *self_;
         if let Some(temp) = options.get("temperature").and_then(|v| v.double()) {
-            s.temperature = temp as f32;
+            s.temperature = temp;
         }
         if let Some(tokens) = options.get("max_tokens").and_then(|v| v.long()) {
             s.max_tokens = tokens as u32;
         }
         if let Some(top_p) = options.get("top_p").and_then(|v| v.double()) {
-            s.top_p = top_p as f32;
+            s.top_p = top_p;
         }
         if let Some(fp) = options.get("frequency_penalty").and_then(|v| v.double()) {
             s.frequency_penalty = fp as f32;
@@ -183,7 +183,7 @@ impl LLM {
         self_: &mut ZendClassObject<LLM>,
         temperature: f64,
     ) -> &mut ZendClassObject<LLM> {
-        self_.temperature = temperature as f32;
+        self_.temperature = temperature;
         self_
     }
 
@@ -198,7 +198,7 @@ impl LLM {
 
     /// Set top_p
     pub fn set_top_p(self_: &mut ZendClassObject<LLM>, top_p: f64) -> &mut ZendClassObject<LLM> {
-        self_.top_p = top_p as f32;
+        self_.top_p = top_p;
         self_
     }
 

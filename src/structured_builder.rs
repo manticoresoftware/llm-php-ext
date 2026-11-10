@@ -13,9 +13,9 @@ use crate::llm_class::Usage;
 #[php_class]
 pub struct StructuredBuilder {
     model: String,
-    temperature: f32,
+    temperature: f64,
     max_tokens: u32,
-    top_p: f32,
+    top_p: f64,
     schema: Option<String>,
     format: String,
     runtime: Arc<Runtime>,
@@ -25,9 +25,9 @@ pub struct StructuredBuilder {
 impl StructuredBuilder {
     pub(crate) fn new(
         model: String,
-        temperature: f32,
+        temperature: f64,
         max_tokens: u32,
-        top_p: f32,
+        top_p: f64,
         schema: Option<String>,
         runtime: Arc<Runtime>,
     ) -> Self {
@@ -140,7 +140,7 @@ impl StructuredBuilder {
         self_: &mut ZendClassObject<StructuredBuilder>,
         temperature: f64,
     ) -> &mut ZendClassObject<StructuredBuilder> {
-        self_.temperature = temperature as f32;
+        self_.temperature = temperature;
         self_
     }
 
